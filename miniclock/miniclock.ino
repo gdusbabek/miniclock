@@ -9,6 +9,8 @@
 #include <DallasTemperature.h>
 #include <maidenhead.h>
 
+#define LOG_GPS_SENTENCES 0
+
 namespace Pins {
 // GPS uses the board's Serial1 mapping provided by the SAMD21 core.
 constexpr uint8_t GPS_RX = 7;
@@ -81,7 +83,10 @@ void consumeGpsData() {
   while (Serial1.available() > 0) {
     const char c = static_cast<char>(Serial1.read());
     gps.encode(c);
+
+#if LOG_GPS_SENTENCES
     Serial.write(c);
+#endif
   }
 }
 
