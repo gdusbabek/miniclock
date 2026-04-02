@@ -30,6 +30,8 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t GPS_BAUD = 9600;
 constexpr unsigned long DISPLAY_UPDATE_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
+constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
+constexpr unsigned long GPS_LOCK_STATUS_MS = 1000UL;
 
 TinyGPSPlus gps;
 OneWire oneWire(Pins::ONE_WIRE);
@@ -79,6 +81,15 @@ void syncSystemTimeFromGps() {
   );
 }
 
+bool hasFreshGpsLock() {
+  return gps.location.isValid() &&
+         gps.date.isValid() &&
+         gps.time.isValid() &&
+         gps.location.age() <= GPS_DATA_FRESH_MS &&
+         gps.date.age() <= GPS_DATA_FRESH_MS &&
+         gps.time.age() <= GPS_DATA_FRESH_MS;
+}
+
 void consumeGpsData() {
   while (Serial1.available() > 0) {
     const char c = static_cast<char>(Serial1.read());
@@ -87,6 +98,30 @@ void consumeGpsData() {
 #if LOG_GPS_SENTENCES
     Serial.write(c);
 #endif
+  }
+}
+
+void waitForFreshGpsLock() {
+  unsigned long lastStatusMs = 0;
+
+  while (!hasFreshGpsLock()) {
+    consumeGpsData();
+
+    const unsigned long nowMs = millis();
+    if (nowMs - lastStatusMs >= GPS_LOCK_STATUS_MS) {
+      Serial.print(F("Waiting for GPS lock"));
+      Serial.print(F(" sats="));
+      Serial.print(gps.satellites.isValid() ? gps.satellites.value() : 0);
+      Serial.print(F(" loc="));
+      Serial.print(gps.location.isValid() ? F("Y") : F("N"));
+      Serial.print(F(" date="));
+      Serial.print(gps.date.isValid() ? F("Y") : F("N"));
+      Serial.print(F(" time="));
+      Serial.println(gps.time.isValid() ? F("Y") : F("N"));
+      lastStatusMs = nowMs;
+    }
+
+    delay(10);
   }
 }
 
@@ -118,8 +153,12 @@ void setup() {
   initializePins();
   initializeSerial();
   initializeDisplay();
-  tempSensors.begin();
+  // tempSensors.begin();
   showAcquiringLock();
+  waitForFreshGpsLock();
+  syncSystemTimeFromGps();
+  lastGpsResyncMs = millis();
+  Serial.println(F("GPS lock acquired."));
 }
 
 void loop() {
