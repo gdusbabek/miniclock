@@ -28,6 +28,7 @@ constexpr uint8_t ONE_WIRE = 2;
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t GPS_BAUD = 9600;
+constexpr unsigned long SERIAL_WAIT_MS = 3000UL;
 constexpr unsigned long DISPLAY_UPDATE_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
@@ -53,6 +54,10 @@ void initializePins() {
 
 void initializeSerial() {
   Serial.begin(SERIAL_BAUD);
+  const unsigned long serialStartMs = millis();
+  while (!Serial && millis() - serialStartMs < SERIAL_WAIT_MS) {
+    delay(10);
+  }
   Serial1.begin(GPS_BAUD);
 }
 
