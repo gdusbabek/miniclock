@@ -53,7 +53,7 @@ void initializeSerial() {
 }
 
 void initializeDisplay() {
-  SPI.begin();
+  //SPI.begin();
   // Placeholder until the exact Waveshare driver library is chosen.
 }
 
@@ -90,8 +90,7 @@ void updateDisplay() {
     return;
   }
 
-  char locator[7] = {0};
-  mh::Maidenhead(gps.location.lat(), gps.location.lng()).toChars(locator, sizeof(locator));
+  const char* locator = get_mh(gps.location.lat(), gps.location.lng(), 6);
 
   Serial.print(F("UTC "));
   Serial.print(year());
