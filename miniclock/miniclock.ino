@@ -123,6 +123,7 @@ void waitForFreshGpsLock() {
 
     delay(10);
   }
+  Serial.printf("GPS is locked with %d satellites.\n", gps.satellites);
 }
 
 void updateDisplay() {
