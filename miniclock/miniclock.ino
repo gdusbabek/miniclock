@@ -33,6 +33,7 @@ constexpr unsigned long DISPLAY_UPDATE_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
 constexpr unsigned long GPS_LOCK_STATUS_MS = 1000UL;
+constexpr size_t SERIAL_COMMAND_BUFFER_SIZE = 32;
 
 TinyGPSPlus gps;
 OneWire oneWire(Pins::ONE_WIRE);
@@ -40,6 +41,8 @@ DallasTemperature tempSensors(&oneWire);
 
 unsigned long lastDisplayUpdateMs = 0;
 unsigned long lastGpsResyncMs = 0;
+char serialCommandBuffer[SERIAL_COMMAND_BUFFER_SIZE] = {0};
+size_t serialCommandLength = 0;
 
 void initializePins() {
   pinMode(Pins::EPD_CS, OUTPUT);
@@ -128,7 +131,110 @@ void waitForFreshGpsLock() {
 
     delay(10);
   }
-  Serial.printf("GPS is locked with %d satellites.\n", gps.satellites);
+  Serial.print(F("GPS is locked with "));
+  Serial.print(gps.satellites.value());
+  Serial.println(F(" satellites."));
+}
+
+void printState() {
+  const char* locator = gps.location.isValid()
+    ? get_mh(gps.location.lat(), gps.location.lng(), 6)
+    : "------";
+
+  Serial.println(F("state"));
+  Serial.print(F("latitude: "));
+  if (gps.location.isValid()) {
+    Serial.println(gps.location.lat(), 6);
+  } else {
+    Serial.println(F("unavailable"));
+  }
+
+  Serial.print(F("longitude: "));
+  if (gps.location.isValid()) {
+    Serial.println(gps.location.lng(), 6);
+  } else {
+    Serial.println(F("unavailable"));
+  }
+
+  Serial.print(F("satellites: "));
+  if (gps.satellites.isValid()) {
+    Serial.println(gps.satellites.value());
+  } else {
+    Serial.println(F("unavailable"));
+  }
+
+  Serial.print(F("maidenhead: "));
+  Serial.println(locator);
+
+  Serial.print(F("utc date: "));
+  if (gps.date.isValid()) {
+    Serial.print(gps.date.year());
+    Serial.print(F("-"));
+    if (gps.date.month() < 10) {
+      Serial.print(F("0"));
+    }
+    Serial.print(gps.date.month());
+    Serial.print(F("-"));
+    if (gps.date.day() < 10) {
+      Serial.print(F("0"));
+    }
+    Serial.println(gps.date.day());
+  } else {
+    Serial.println(F("unavailable"));
+  }
+
+  Serial.print(F("utc time: "));
+  if (gps.time.isValid()) {
+    if (gps.time.hour() < 10) {
+      Serial.print(F("0"));
+    }
+    Serial.print(gps.time.hour());
+    Serial.print(F(":"));
+    if (gps.time.minute() < 10) {
+      Serial.print(F("0"));
+    }
+    Serial.print(gps.time.minute());
+    Serial.print(F(":"));
+    if (gps.time.second() < 10) {
+      Serial.print(F("0"));
+    }
+    Serial.println(gps.time.second());
+  } else {
+    Serial.println(F("unavailable"));
+  }
+}
+
+void handleSerialCommand(const char* command) {
+  if (strcmp(command, "state") == 0) {
+    printState();
+    return;
+  }
+
+  if (command[0] != '\0') {
+    Serial.print(F("Unknown command: "));
+    Serial.println(command);
+  }
+}
+
+void consumeSerialCommands() {
+  while (Serial.available() > 0) {
+    const char c = static_cast<char>(Serial.read());
+
+    if (c == '\r') {
+      continue;
+    }
+
+    if (c == '\n') {
+      serialCommandBuffer[serialCommandLength] = '\0';
+      handleSerialCommand(serialCommandBuffer);
+      serialCommandLength = 0;
+      continue;
+    }
+
+    if (serialCommandLength < SERIAL_COMMAND_BUFFER_SIZE - 1) {
+      serialCommandBuffer[serialCommandLength++] = c;
+    }
+  }
 }
 
 void updateDisplay() {
@@ -169,6 +275,7 @@ void setup() {
 
 void loop() {
   consumeGpsData();
+  consumeSerialCommands();
 
   const unsigned long nowMs = millis();
 
