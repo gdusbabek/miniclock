@@ -243,8 +243,7 @@ void drawDisplayHeader(const char* timeLine,
   drawCenteredText(timeLine, timeFont, display.width() / 2, 24);
   drawCenteredText(dateLine, dateFont, display.width() / 2, 59);
   display.setFont(locatorFont);
-  display.setCursor(8, 91);
-  display.println(locator);
+  drawCenteredText(locator, locatorFont, display.width() / 2, 89);
   display.fillRect(8, 98, display.width() - 16, 2, GxEPD_BLACK);
 }
 
