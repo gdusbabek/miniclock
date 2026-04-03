@@ -13,6 +13,8 @@
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold24pt7b.h>
+#include <Fonts/FreeSans12pt7b.h>
+#include <Fonts/FreeSans18pt7b.h>
 #include <TinyGPS++.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -196,7 +198,7 @@ void renderDisplayLines(const char* line1,
 
 void showAcquiringGps() {
   Serial.println(F("Acquiring GPS..."));
-  const GFXfont* font = &FreeSansBold18pt7b;
+  const GFXfont* font = &FreeSansBold12pt7b;
 
   display.firstPage();
   do {
@@ -394,9 +396,9 @@ void updateDisplay() {
     timeFont = &FreeMonoBold12pt7b;
   }
 
-  const GFXfont* dateFont = &FreeSansBold18pt7b;
+  const GFXfont* dateFont = &FreeSans18pt7b;
   if (!textFits(dateFont, dateLine, display.width() - 4, 24)) {
-    dateFont = &FreeSansBold12pt7b;
+    dateFont = &FreeSans12pt7b;
   }
 
   display.firstPage();
