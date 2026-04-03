@@ -22,8 +22,9 @@ namespace Pins {
 constexpr uint8_t GPS_RX = 7;
 constexpr uint8_t GPS_TX = 6;
 
-// Suggested e-paper GPIO assignments around hardware SPI.
-constexpr uint8_t EPD_CS = 10;
+// Hardware SPI is fixed on this board: CLK/SCK=D8, MISO=D9, DIN/MOSI=D10.
+// Keep the control pins off those dedicated SPI pins.
+constexpr uint8_t EPD_CS = 1;
 constexpr uint8_t EPD_DC = 5;
 constexpr uint8_t EPD_RST = 4;
 constexpr uint8_t EPD_BUSY = 3;
