@@ -528,6 +528,7 @@ void updateDisplay() {
     dateFont = &FreeSans12pt7b;
   }
 
+  const GFXfont* locationFont = &FreeSans12pt7b;
   const GFXfont* tempFont = &FreeSansBold12pt7b;
 
   display.firstPage();
@@ -537,7 +538,7 @@ void updateDisplay() {
     drawCenteredText(dateLine, dateFont, display.width() / 2, 59);
     display.drawLine(8, 76, display.width() - 8, 76, GxEPD_BLACK);
 
-    display.setFont();
+    display.setFont(locationFont);
     display.setCursor(8, 96);
     display.println(line1);
     if (line2[0] != '\0') {
