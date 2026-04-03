@@ -52,7 +52,7 @@ constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
 constexpr unsigned long GPS_LOCK_STATUS_MS = 1000UL;
 constexpr size_t SERIAL_COMMAND_BUFFER_SIZE = 64;
-constexpr uint8_t FULL_REFRESH_INTERVAL_MINUTES = 4;
+constexpr uint8_t FULL_REFRESH_INTERVAL_MINUTES = 6;
 constexpr uint16_t PARTIAL_HEADER_HEIGHT = 100;
 constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
@@ -257,7 +257,7 @@ void drawDisplayLocationBlock(const char* locator,
                               const char* parkLine) {
   const GFXfont* locatorFont = &FreeSans9pt7b;
   const GFXfont* locationFont = &FreeSans9pt7b;
-  int16_t rowY = potaLine[0] != '\0' ? 122 : 99;
+  int16_t rowY = potaLine[0] != '\0' ? 122 : 110;
 
   display.setFont(locatorFont);
   display.setCursor(8, rowY);
