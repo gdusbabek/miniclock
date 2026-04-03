@@ -511,9 +511,12 @@ void updateDisplay() {
 
   snprintf(timeLine, sizeof(timeLine), "%02d:%02d", hour(), minute());
   snprintf(dateLine, sizeof(dateLine), "%02d %s %04d", day(), MONTH_NAMES[month() - 1], year());
-  snprintf(line1, sizeof(line1), "%s", locator);
-  snprintf(line2, sizeof(line2), "%s", county);
-  snprintf(line3, sizeof(line3), "%s", park);
+  if (county[0] != '\0') {
+    snprintf(line1, sizeof(line1), "%s %s", locator, county);
+  } else {
+    snprintf(line1, sizeof(line1), "%s", locator);
+  }
+  snprintf(line2, sizeof(line2), "%s", park);
   snprintf(footerLine, sizeof(footerLine), "GPS lock - %lu sats", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
 
   const GFXfont* timeFont = &FreeMonoBold24pt7b;
@@ -545,10 +548,6 @@ void updateDisplay() {
     if (line2[0] != '\0') {
       display.setCursor(8, 114);
       display.println(line2);
-    }
-    if (line3[0] != '\0') {
-      display.setCursor(8, 132);
-      display.println(line3);
     }
 
     display.setFont();
