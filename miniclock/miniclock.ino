@@ -14,6 +14,7 @@
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold24pt7b.h>
+#include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSans12pt7b.h>
 #include <Fonts/FreeSans18pt7b.h>
 #include <TinyGPS++.h>
@@ -528,7 +529,7 @@ void updateDisplay() {
     dateFont = &FreeSans12pt7b;
   }
 
-  const GFXfont* locationFont = &FreeSans12pt7b;
+  const GFXfont* locationFont = &FreeSans9pt7b;
   const GFXfont* tempFont = &FreeSansBold12pt7b;
 
   display.firstPage();
