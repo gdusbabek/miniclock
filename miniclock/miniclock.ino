@@ -36,7 +36,7 @@ constexpr uint8_t ONE_WIRE = 2;
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t GPS_BAUD = 9600;
 constexpr unsigned long SERIAL_WAIT_MS = 3000UL;
-constexpr unsigned long WELCOME_MESSAGE_MS = 3000UL;
+constexpr unsigned long ACQUIRING_GPS_MIN_MS = 5000UL;
 constexpr unsigned long DISPLAY_UPDATE_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
@@ -114,15 +114,17 @@ void renderDisplayLines(const char* line1,
   display.hibernate();
 }
 
-void showAcquiringLock() {
-  Serial.println(F("Acquiring lock..."));
-  renderDisplayLines("Acquiring lock...", "Waiting for GPS...", "", "", "state over serial");
+void showAcquiringGps() {
+  Serial.println(F("Acquiring GPS..."));
+  renderDisplayLines("Acquiring GPS");
 }
 
-void showWelcomeMessage() {
-  Serial.println(F("Showing welcome message..."));
-  renderDisplayLines("MiniClock", "GPS UTC Clock", "", "", "Starting up...");
-  delay(WELCOME_MESSAGE_MS);
+void holdAcquiringGpsScreen() {
+  const unsigned long startMs = millis();
+  while (millis() - startMs < ACQUIRING_GPS_MIN_MS) {
+    consumeGpsData();
+    delay(10);
+  }
 }
 
 void syncSystemTimeFromGps() {
@@ -168,19 +170,6 @@ void waitForFreshGpsLock() {
 
     const unsigned long nowMs = millis();
     if (nowMs - lastStatusMs >= GPS_LOCK_STATUS_MS) {
-      char line2[32] = {0};
-      char line3[32] = {0};
-      snprintf(line2, sizeof(line2), "sats=%lu", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
-      snprintf(
-        line3,
-        sizeof(line3),
-        "loc=%c date=%c time=%c",
-        gps.location.isValid() ? 'Y' : 'N',
-        gps.date.isValid() ? 'Y' : 'N',
-        gps.time.isValid() ? 'Y' : 'N'
-      );
-      renderDisplayLines("Acquiring lock...", line2, line3);
-
       Serial.print(F("Waiting for GPS lock"));
       Serial.print(F(" sats="));
       Serial.print(gps.satellites.isValid() ? gps.satellites.value() : 0);
@@ -345,9 +334,9 @@ void setup() {
   initializePins();
   initializeSerial();
   initializeDisplay();
-  showWelcomeMessage();
+  showAcquiringGps();
+  holdAcquiringGpsScreen();
   // tempSensors.begin();
-  showAcquiringLock();
   waitForFreshGpsLock();
   syncSystemTimeFromGps();
   lastGpsResyncMs = millis();
