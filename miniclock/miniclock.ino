@@ -53,7 +53,7 @@ constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
 constexpr unsigned long GPS_LOCK_STATUS_MS = 1000UL;
 constexpr size_t SERIAL_COMMAND_BUFFER_SIZE = 64;
 constexpr uint8_t FULL_REFRESH_INTERVAL_MINUTES = 4;
-constexpr uint16_t PARTIAL_HEADER_HEIGHT = 80;
+constexpr uint16_t PARTIAL_HEADER_HEIGHT = 100;
 constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 
@@ -236,25 +236,24 @@ void drawTemperatureIcon(int16_t x, int16_t y) {
 void drawDisplayHeader(const char* timeLine,
                        const GFXfont* timeFont,
                        const char* dateLine,
-                       const GFXfont* dateFont) {
+                       const GFXfont* dateFont,
+                       const char* locator) {
+  const GFXfont* locatorFont = &FreeSans12pt7b;
+
   drawCenteredText(timeLine, timeFont, display.width() / 2, 24);
   drawCenteredText(dateLine, dateFont, display.width() / 2, 59);
-  display.fillRect(8, 75, display.width() - 16, 2, GxEPD_BLACK);
+  display.setFont(locatorFont);
+  display.setCursor(8, 91);
+  display.println(locator);
+  display.fillRect(8, 98, display.width() - 16, 2, GxEPD_BLACK);
 }
 
-void drawDisplayLocationBlock(const char* locator,
-                              const char* countyLine,
+void drawDisplayLocationBlock(const char* countyLine,
                               const char* potaLine,
                               const char* parkLine) {
-  const GFXfont* locatorFont = &FreeSans12pt7b;
   const GFXfont* locationFont = &FreeSans9pt7b;
 
-  int16_t rowY = 99;
-  display.setFont(locatorFont);
-  display.setCursor(8, rowY);
-  display.println(locator);
-  rowY += 18;
-
+  int16_t rowY = 118;
   display.setFont(locationFont);
   if (countyLine[0] != '\0') {
     display.setCursor(8, rowY);
@@ -628,7 +627,7 @@ void updateDisplay(bool forceFullRefresh) {
     display.firstPage();
     do {
       display.fillScreen(GxEPD_WHITE);
-      drawDisplayHeader(timeLine, timeFont, dateLine, dateFont);
+      drawDisplayHeader(timeLine, timeFont, dateLine, dateFont, locator);
     } while (display.nextPage());
 
     display.setPartialWindow(0, PARTIAL_FOOTER_Y, display.width(), PARTIAL_FOOTER_HEIGHT);
@@ -644,8 +643,8 @@ void updateDisplay(bool forceFullRefresh) {
     display.firstPage();
     do {
       display.fillScreen(GxEPD_WHITE);
-      drawDisplayHeader(timeLine, timeFont, dateLine, dateFont);
-      drawDisplayLocationBlock(locator, countyLine, potaLine, parkLine);
+      drawDisplayHeader(timeLine, timeFont, dateLine, dateFont, locator);
+      drawDisplayLocationBlock(countyLine, potaLine, parkLine);
       drawDisplayFooter(footerLine, tempFont);
     } while (display.nextPage());
 
