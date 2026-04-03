@@ -6,6 +6,11 @@
 #include <TimeLib.h>
 #include <Adafruit_SleepyDog.h>
 #include <GxEPD2_BW.h>
+#include <Fonts/FreeMonoBold12pt7b.h>
+#include <Fonts/FreeMonoBold18pt7b.h>
+#include <Fonts/FreeMonoBold24pt7b.h>
+#include <Fonts/FreeSansBold18pt7b.h>
+#include <Fonts/FreeSansBold24pt7b.h>
 #include <TinyGPS++.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -84,6 +89,29 @@ void initializeDisplay() {
   display.setFullWindow();
 }
 
+bool textFits(const GFXfont* font, const char* text, int16_t maxWidth, int16_t maxHeight) {
+  int16_t x1 = 0;
+  int16_t y1 = 0;
+  uint16_t w = 0;
+  uint16_t h = 0;
+  display.setFont(font);
+  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  return w <= maxWidth && h <= maxHeight;
+}
+
+void drawCenteredText(const char* text, const GFXfont* font, int16_t centerX, int16_t centerY) {
+  int16_t x1 = 0;
+  int16_t y1 = 0;
+  uint16_t w = 0;
+  uint16_t h = 0;
+  display.setFont(font);
+  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  const int16_t x = centerX - ((int16_t)w / 2) - x1;
+  const int16_t y = centerY - ((int16_t)h / 2) - y1;
+  display.setCursor(x, y);
+  display.print(text);
+}
+
 void renderDisplayLines(const char* line1,
                         const char* line2 = "",
                         const char* line3 = "",
@@ -116,7 +144,16 @@ void renderDisplayLines(const char* line1,
 
 void showAcquiringGps() {
   Serial.println(F("Acquiring GPS..."));
-  renderDisplayLines("Acquiring GPS");
+  const GFXfont* font = textFits(&FreeSansBold24pt7b, "Acquiring GPS", display.width() - 8, display.height() - 8)
+    ? &FreeSansBold24pt7b
+    : &FreeSansBold18pt7b;
+
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    drawCenteredText("Acquiring GPS", font, display.width() / 2, display.height() / 2);
+  } while (display.nextPage());
+  display.hibernate();
 }
 
 void holdAcquiringGpsScreen() {
@@ -295,24 +332,46 @@ void updateDisplay() {
     ? get_mh(gps.location.lat(), gps.location.lng(), 6)
     : "------";
 
+  char timeLine[16] = {0};
   char line1[32] = {0};
   char line2[32] = {0};
   char line3[32] = {0};
   char line4[32] = {0};
-  char line5[32] = {0};
 
+  snprintf(timeLine, sizeof(timeLine), "%02d:%02d:%02d", hour(), minute(), second());
   snprintf(line1, sizeof(line1), "UTC %04d-%02d-%02d", year(), month(), day());
-  snprintf(line2, sizeof(line2), "%02d:%02d:%02d", hour(), minute(), second());
-  snprintf(line3, sizeof(line3), "Grid %s", locator);
-  snprintf(line4, sizeof(line4), "Sats %lu", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
+  snprintf(line2, sizeof(line2), "Grid %s", locator);
+  snprintf(line3, sizeof(line3), "Sats %lu", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
 
   if (gps.location.isValid()) {
-    snprintf(line5, sizeof(line5), "%.2f %.2f", gps.location.lat(), gps.location.lng());
+    snprintf(line4, sizeof(line4), "%.2f %.2f", gps.location.lat(), gps.location.lng());
   } else {
-    snprintf(line5, sizeof(line5), "No location");
+    snprintf(line4, sizeof(line4), "No location");
   }
 
-  renderDisplayLines(line1, line2, line3, line4, line5);
+  const GFXfont* timeFont = &FreeMonoBold24pt7b;
+  if (!textFits(timeFont, timeLine, display.width() - 8, 40)) {
+    timeFont = &FreeMonoBold18pt7b;
+  }
+  if (!textFits(timeFont, timeLine, display.width() - 8, 40)) {
+    timeFont = &FreeMonoBold12pt7b;
+  }
+
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    drawCenteredText(timeLine, timeFont, display.width() / 2, 28);
+    display.setFont();
+    display.setCursor(0, 68);
+    display.println(line1);
+    display.setCursor(0, 88);
+    display.println(line2);
+    display.setCursor(0, 108);
+    display.println(line3);
+    display.setCursor(0, 128);
+    display.println(line4);
+  } while (display.nextPage());
+  display.hibernate();
 
   Serial.print(F("UTC "));
   Serial.print(year());
