@@ -1,15 +1,21 @@
 #include <stdio.h>
+#include <string.h>
 #include <FlashStorage.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <TimeLib.h>
 #include <Adafruit_SleepyDog.h>
+#include <GxEPD2_BW.h>
 #include <TinyGPS++.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <maidenhead.h>
 
 #define LOG_GPS_SENTENCES 0
+#define GxEPD2_DISPLAY_CLASS GxEPD2_BW
+#define GxEPD2_DRIVER_CLASS GxEPD2_154_D67
+#define MAX_DISPLAY_BUFFER_SIZE 15000ul
+#define MAX_HEIGHT(EPD) (EPD::HEIGHT <= MAX_DISPLAY_BUFFER_SIZE / (EPD::WIDTH / 8) ? EPD::HEIGHT : MAX_DISPLAY_BUFFER_SIZE / (EPD::WIDTH / 8))
 
 namespace Pins {
 // GPS uses the board's Serial1 mapping provided by the SAMD21 core.
@@ -34,6 +40,10 @@ constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
 constexpr unsigned long GPS_LOCK_STATUS_MS = 1000UL;
 constexpr size_t SERIAL_COMMAND_BUFFER_SIZE = 32;
+
+GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
+  GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
+);
 
 TinyGPSPlus gps;
 OneWire oneWire(Pins::ONE_WIRE);
@@ -65,13 +75,46 @@ void initializeSerial() {
 }
 
 void initializeDisplay() {
-  //SPI.begin();
-  // Placeholder until the exact Waveshare driver library is chosen.
+  SPI.begin();
+  display.init(115200, true, 2, false);
+  display.setRotation(0);
+  display.setTextColor(GxEPD_BLACK);
+  display.setFullWindow();
+}
+
+void renderDisplayLines(const char* line1,
+                        const char* line2 = "",
+                        const char* line3 = "",
+                        const char* line4 = "",
+                        const char* line5 = "") {
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(0, 16);
+    display.println(line1);
+    if (line2[0] != '\0') {
+      display.setCursor(0, 36);
+      display.println(line2);
+    }
+    if (line3[0] != '\0') {
+      display.setCursor(0, 56);
+      display.println(line3);
+    }
+    if (line4[0] != '\0') {
+      display.setCursor(0, 76);
+      display.println(line4);
+    }
+    if (line5[0] != '\0') {
+      display.setCursor(0, 96);
+      display.println(line5);
+    }
+  } while (display.nextPage());
+  display.hibernate();
 }
 
 void showAcquiringLock() {
   Serial.println(F("Acquiring lock..."));
-  // Placeholder for first e-paper splash screen.
+  renderDisplayLines("Acquiring lock...", "Waiting for GPS...", "", "", "state over serial");
 }
 
 void syncSystemTimeFromGps() {
@@ -117,6 +160,19 @@ void waitForFreshGpsLock() {
 
     const unsigned long nowMs = millis();
     if (nowMs - lastStatusMs >= GPS_LOCK_STATUS_MS) {
+      char line2[32] = {0};
+      char line3[32] = {0};
+      snprintf(line2, sizeof(line2), "sats=%lu", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
+      snprintf(
+        line3,
+        sizeof(line3),
+        "loc=%c date=%c time=%c",
+        gps.location.isValid() ? 'Y' : 'N',
+        gps.date.isValid() ? 'Y' : 'N',
+        gps.time.isValid() ? 'Y' : 'N'
+      );
+      renderDisplayLines("Acquiring lock...", line2, line3);
+
       Serial.print(F("Waiting for GPS lock"));
       Serial.print(F(" sats="));
       Serial.print(gps.satellites.isValid() ? gps.satellites.value() : 0);
@@ -238,11 +294,28 @@ void consumeSerialCommands() {
 }
 
 void updateDisplay() {
-  if (!gps.location.isValid()) {
-    return;
+  const char* locator = gps.location.isValid()
+    ? get_mh(gps.location.lat(), gps.location.lng(), 6)
+    : "------";
+
+  char line1[32] = {0};
+  char line2[32] = {0};
+  char line3[32] = {0};
+  char line4[32] = {0};
+  char line5[32] = {0};
+
+  snprintf(line1, sizeof(line1), "UTC %04d-%02d-%02d", year(), month(), day());
+  snprintf(line2, sizeof(line2), "%02d:%02d:%02d", hour(), minute(), second());
+  snprintf(line3, sizeof(line3), "Grid %s", locator);
+  snprintf(line4, sizeof(line4), "Sats %lu", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
+
+  if (gps.location.isValid()) {
+    snprintf(line5, sizeof(line5), "%.2f %.2f", gps.location.lat(), gps.location.lng());
+  } else {
+    snprintf(line5, sizeof(line5), "No location");
   }
 
-  const char* locator = get_mh(gps.location.lat(), gps.location.lng(), 6);
+  renderDisplayLines(line1, line2, line3, line4, line5);
 
   Serial.print(F("UTC "));
   Serial.print(year());
@@ -258,7 +331,6 @@ void updateDisplay() {
   Serial.print(locator);
   Serial.print(F("  Sats "));
   Serial.println(gps.satellites.value());
-  // Placeholder for full e-paper rendering.
 }
 
 void setup() {
