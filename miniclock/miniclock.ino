@@ -71,6 +71,7 @@ int lastDisplayedDay = -1;
 int lastDisplayedHour = -1;
 int lastDisplayedMinute = -1;
 bool lastDisplayedUsedLocationOverride = false;
+char lastDisplayedLocator[7] = "";
 char serialCommandBuffer[SERIAL_COMMAND_BUFFER_SIZE] = {0};
 size_t serialCommandLength = 0;
 bool locationOverrideActive = false;
@@ -173,6 +174,7 @@ void resetDisplayState() {
   lastDisplayedHour = -1;
   lastDisplayedMinute = -1;
   lastDisplayedUsedLocationOverride = false;
+  lastDisplayedLocator[0] = '\0';
 }
 
 void initializePins() {
@@ -243,10 +245,10 @@ void drawDisplayHeader(const char* timeLine,
   drawCenteredText(dateLine, dateFont, display.width() / 2, 59);
   if (potaLine[0] != '\0') {
     drawCenteredText(potaLine, potaFont, display.width() / 2, 89);
-    display.fillRect(8, 98, display.width() - 16, 2, GxEPD_BLACK);
+    display.fillRect(8, 102, display.width() - 16, 2, GxEPD_BLACK);
     return;
   }
-  display.fillRect(8, 75, display.width() - 16, 2, GxEPD_BLACK);
+  display.fillRect(8, 79, display.width() - 16, 2, GxEPD_BLACK);
 }
 
 void drawDisplayLocationBlock(const char* locator,
@@ -255,7 +257,7 @@ void drawDisplayLocationBlock(const char* locator,
                               const char* parkLine) {
   const GFXfont* locatorFont = &FreeSans9pt7b;
   const GFXfont* locationFont = &FreeSans9pt7b;
-  int16_t rowY = potaLine[0] != '\0' ? 118 : 95;
+  int16_t rowY = potaLine[0] != '\0' ? 122 : 99;
 
   display.setFont(locatorFont);
   display.setCursor(8, rowY);
@@ -673,17 +675,26 @@ void updateDisplay(bool forceFullRefresh) {
 
 bool shouldUpdateDisplayForCurrentMinute() {
   const bool usingLocationOverride = isLocationOverrideActive();
+  const char* locator = currentLocationValid()
+    ? get_mh(currentLatitude(), currentLongitude(), 6)
+    : "------";
+  const bool locatorChanged = strcmp(locator, lastDisplayedLocator) != 0;
   if (year() != lastDisplayedYear ||
       day() != lastDisplayedDay ||
       hour() != lastDisplayedHour ||
       minute() != lastDisplayedMinute ||
+      locatorChanged ||
       usingLocationOverride != lastDisplayedUsedLocationOverride) {
-    displayNeedsFullRefresh = usingLocationOverride != lastDisplayedUsedLocationOverride;
+    displayNeedsFullRefresh =
+      usingLocationOverride != lastDisplayedUsedLocationOverride ||
+      locatorChanged;
     lastDisplayedYear = year();
     lastDisplayedDay = day();
     lastDisplayedHour = hour();
     lastDisplayedMinute = minute();
     lastDisplayedUsedLocationOverride = usingLocationOverride;
+    strncpy(lastDisplayedLocator, locator, sizeof(lastDisplayedLocator) - 1);
+    lastDisplayedLocator[sizeof(lastDisplayedLocator) - 1] = '\0';
     return true;
   }
 
