@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdlib.h>
 #include <FlashStorage.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -45,10 +46,11 @@ constexpr uint8_t ONE_WIRE = 2;
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t GPS_BAUD = 9600;
 constexpr unsigned long SERIAL_WAIT_MS = 3000UL;
+constexpr unsigned long LOCATION_OVERRIDE_MS = 5UL * 60UL * 1000UL;
 constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
 constexpr unsigned long GPS_LOCK_STATUS_MS = 1000UL;
-constexpr size_t SERIAL_COMMAND_BUFFER_SIZE = 32;
+constexpr size_t SERIAL_COMMAND_BUFFER_SIZE = 64;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
   GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
@@ -63,8 +65,13 @@ int lastDisplayedYear = -1;
 int lastDisplayedDay = -1;
 int lastDisplayedHour = -1;
 int lastDisplayedMinute = -1;
+bool lastDisplayedUsedLocationOverride = false;
 char serialCommandBuffer[SERIAL_COMMAND_BUFFER_SIZE] = {0};
 size_t serialCommandLength = 0;
+bool locationOverrideActive = false;
+double locationOverrideLat = 0.0;
+double locationOverrideLon = 0.0;
+unsigned long locationOverrideExpiresMs = 0;
 
 const char* const MONTH_NAMES[] = {
   "January",
@@ -113,6 +120,34 @@ const char* parkForGrid(const char* locator) {
   if (strcmp(normalized, "EL19DU") == 0) return "3033 Lockhart SP";
   if (strcmp(normalized, "EL09SH") == 0) return "4568, 0756 Missions";
   return "";
+}
+
+bool isLocationOverrideActive() {
+  if (locationOverrideActive &&
+      static_cast<long>(millis() - locationOverrideExpiresMs) >= 0) {
+    locationOverrideActive = false;
+  }
+  return locationOverrideActive;
+}
+
+bool currentLocationValid() {
+  return isLocationOverrideActive() || gps.location.isValid();
+}
+
+double currentLatitude() {
+  return isLocationOverrideActive() ? locationOverrideLat : gps.location.lat();
+}
+
+double currentLongitude() {
+  return isLocationOverrideActive() ? locationOverrideLon : gps.location.lng();
+}
+
+void resetDisplayState() {
+  lastDisplayedYear = -1;
+  lastDisplayedDay = -1;
+  lastDisplayedHour = -1;
+  lastDisplayedMinute = -1;
+  lastDisplayedUsedLocationOverride = false;
 }
 
 void initializePins() {
@@ -271,21 +306,21 @@ void waitForFreshGpsLock() {
 }
 
 void printState() {
-  const char* locator = gps.location.isValid()
-    ? get_mh(gps.location.lat(), gps.location.lng(), 6)
+  const char* locator = currentLocationValid()
+    ? get_mh(currentLatitude(), currentLongitude(), 6)
     : "------";
 
   Serial.println(F("state"));
   Serial.print(F("latitude: "));
-  if (gps.location.isValid()) {
-    Serial.println(gps.location.lat(), 6);
+  if (currentLocationValid()) {
+    Serial.println(currentLatitude(), 6);
   } else {
     Serial.println(F("unavailable"));
   }
 
   Serial.print(F("longitude: "));
-  if (gps.location.isValid()) {
-    Serial.println(gps.location.lng(), 6);
+  if (currentLocationValid()) {
+    Serial.println(currentLongitude(), 6);
   } else {
     Serial.println(F("unavailable"));
   }
@@ -336,11 +371,92 @@ void printState() {
   } else {
     Serial.println(F("unavailable"));
   }
+
+  Serial.print(F("location override: "));
+  Serial.println(isLocationOverrideActive() ? F("active") : F("inactive"));
+}
+
+void setLocationOverride(double latitude, double longitude) {
+  locationOverrideLat = latitude;
+  locationOverrideLon = longitude;
+  locationOverrideExpiresMs = millis() + LOCATION_OVERRIDE_MS;
+  locationOverrideActive = true;
+  resetDisplayState();
+  Serial.print(F("Location override set to "));
+  Serial.print(latitude, 6);
+  Serial.print(F(", "));
+  Serial.print(longitude, 6);
+  Serial.println(F(" for 5 minutes."));
+}
+
+bool parseLocationOverrideCommand(const char* command) {
+  if (strncmp(command, "location ", 9) != 0) {
+    return false;
+  }
+
+  const char* payload = command + 9;
+  const char* comma = strchr(payload, ',');
+  if (comma == nullptr) {
+    Serial.println(F("Usage: location LAT, LON"));
+    return true;
+  }
+
+  char latitudeText[24] = {0};
+  char longitudeText[24] = {0};
+  const size_t latitudeLength = static_cast<size_t>(comma - payload);
+  if (latitudeLength == 0 || latitudeLength >= sizeof(latitudeText)) {
+    Serial.println(F("Usage: location LAT, LON"));
+    return true;
+  }
+
+  memcpy(latitudeText, payload, latitudeLength);
+  latitudeText[latitudeLength] = '\0';
+
+  const char* longitudeStart = comma + 1;
+  while (*longitudeStart == ' ') {
+    ++longitudeStart;
+  }
+
+  if (*longitudeStart == '\0' || strlen(longitudeStart) >= sizeof(longitudeText)) {
+    Serial.println(F("Usage: location LAT, LON"));
+    return true;
+  }
+
+  strcpy(longitudeText, longitudeStart);
+
+  char* latitudeEnd = nullptr;
+  char* longitudeEnd = nullptr;
+  const double latitude = strtod(latitudeText, &latitudeEnd);
+  const double longitude = strtod(longitudeText, &longitudeEnd);
+  if (latitudeEnd == latitudeText || longitudeEnd == longitudeText) {
+    Serial.println(F("Usage: location LAT, LON"));
+    return true;
+  }
+
+  while (*latitudeEnd == ' ') {
+    ++latitudeEnd;
+  }
+  while (*longitudeEnd == ' ') {
+    ++longitudeEnd;
+  }
+
+  if (*latitudeEnd != '\0' || *longitudeEnd != '\0') {
+    Serial.println(F("Usage: location LAT, LON"));
+    return true;
+  }
+
+  setLocationOverride(latitude, longitude);
+  updateDisplay();
+  return true;
 }
 
 void handleSerialCommand(const char* command) {
   if (strcmp(command, "state") == 0) {
     printState();
+    return;
+  }
+
+  if (parseLocationOverrideCommand(command)) {
     return;
   }
 
@@ -372,8 +488,8 @@ void consumeSerialCommands() {
 }
 
 void updateDisplay() {
-  const char* locator = gps.location.isValid()
-    ? get_mh(gps.location.lat(), gps.location.lng(), 6)
+  const char* locator = currentLocationValid()
+    ? get_mh(currentLatitude(), currentLongitude(), 6)
     : "------";
 
   char timeLine[16] = {0};
@@ -437,14 +553,17 @@ void updateDisplay() {
 }
 
 bool shouldUpdateDisplayForCurrentMinute() {
+  const bool usingLocationOverride = isLocationOverrideActive();
   if (year() != lastDisplayedYear ||
       day() != lastDisplayedDay ||
       hour() != lastDisplayedHour ||
-      minute() != lastDisplayedMinute) {
+      minute() != lastDisplayedMinute ||
+      usingLocationOverride != lastDisplayedUsedLocationOverride) {
     lastDisplayedYear = year();
     lastDisplayedDay = day();
     lastDisplayedHour = hour();
     lastDisplayedMinute = minute();
+    lastDisplayedUsedLocationOverride = usingLocationOverride;
     return true;
   }
 
