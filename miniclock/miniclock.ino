@@ -114,12 +114,28 @@ const char* parkForGrid(const char* locator) {
 
   if (strcmp(normalized, "L09UO") == 0) return "Home";
   if (strcmp(normalized, "EL09UO") == 0) return "Home";
-  if (strcmp(normalized, "EL19EO") == 0) return "3045 Palmetto SP";
-  if (strcmp(normalized, "EL19FO") == 0) return "3045 Palmetto SP";
-  if (strcmp(normalized, "EL09RU") == 0) return "3017 Guadalupe Riv";
-  if (strcmp(normalized, "EL09SU") == 0) return "3017 Guadalupe Riv";
-  if (strcmp(normalized, "EL19DU") == 0) return "3033 Lockhart SP";
-  if (strcmp(normalized, "EL09SH") == 0) return "4568, 0756 Missions";
+  if (strcmp(normalized, "EL19EO") == 0) return "Palmetto SP";
+  if (strcmp(normalized, "EL19FO") == 0) return "Palmetto SP";
+  if (strcmp(normalized, "EL09RU") == 0) return "Guadalupe Riv SP";
+  if (strcmp(normalized, "EL09SU") == 0) return "Guadalupe Riv SP";
+  if (strcmp(normalized, "EL19DU") == 0) return "Lockhart SP";
+  if (strcmp(normalized, "EL09SH") == 0) return "SA Missions";
+  return "";
+}
+
+const char* potaForGrid(const char* locator) {
+  char normalized[7] = {0};
+  for (size_t i = 0; i < 6 && locator[i] != '\0'; ++i) {
+    normalized[i] = static_cast<char>(toupper(static_cast<unsigned char>(locator[i])));
+  }
+
+  if (strcmp(normalized, "EL09UO") == 0) return "";
+  if (strcmp(normalized, "EL19EO") == 0) return "US-3045";
+  if (strcmp(normalized, "EL19FO") == 0) return "US-3045";
+  if (strcmp(normalized, "EL09RU") == 0) return "US-3017";
+  if (strcmp(normalized, "EL09SU") == 0) return "US-3017";
+  if (strcmp(normalized, "EL19DU") == 0) return "US-3033";
+  if (strcmp(normalized, "EL09SH") == 0) return "US-4568, US-0756";
   return "";
 }
 
@@ -502,21 +518,19 @@ void updateDisplay() {
 
   char timeLine[16] = {0};
   char dateLine[32] = {0};
-  char line1[40] = {0};
-  char line2[40] = {0};
-  char line3[40] = {0};
+  char countyLine[40] = {0};
+  char potaLine[40] = {0};
+  char parkLine[40] = {0};
   char footerLine[32] = {0};
   const char* county = countyForGrid(locator);
+  const char* pota = potaForGrid(locator);
   const char* park = parkForGrid(locator);
 
   snprintf(timeLine, sizeof(timeLine), "%02d:%02d", hour(), minute());
   snprintf(dateLine, sizeof(dateLine), "%02d %s %04d", day(), MONTH_NAMES[month() - 1], year());
-  if (county[0] != '\0') {
-    snprintf(line1, sizeof(line1), "%s %s", locator, county);
-  } else {
-    snprintf(line1, sizeof(line1), "%s", locator);
-  }
-  snprintf(line2, sizeof(line2), "%s", park);
+  snprintf(countyLine, sizeof(countyLine), "%s", county);
+  snprintf(potaLine, sizeof(potaLine), "%s", pota);
+  snprintf(parkLine, sizeof(parkLine), "%s", park);
   snprintf(footerLine, sizeof(footerLine), "GPS lock - %lu sats", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
 
   const GFXfont* timeFont = &FreeMonoBold24pt7b;
@@ -543,11 +557,23 @@ void updateDisplay() {
     display.drawLine(8, 76, display.width() - 8, 76, GxEPD_BLACK);
 
     display.setFont(locationFont);
-    display.setCursor(8, 96);
-    display.println(line1);
-    if (line2[0] != '\0') {
-      display.setCursor(8, 114);
-      display.println(line2);
+    int16_t rowY = 96;
+    display.setCursor(8, rowY);
+    display.println(locator);
+    rowY += 18;
+    if (countyLine[0] != '\0') {
+      display.setCursor(8, rowY);
+      display.println(countyLine);
+      rowY += 18;
+    }
+    if (potaLine[0] != '\0') {
+      display.setCursor(8, rowY);
+      display.println(potaLine);
+      rowY += 18;
+    }
+    if (parkLine[0] != '\0') {
+      display.setCursor(8, rowY);
+      display.println(parkLine);
     }
 
     display.setFont();
