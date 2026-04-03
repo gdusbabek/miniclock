@@ -120,7 +120,7 @@ const char* parkForGrid(const char* locator) {
     normalized[i] = static_cast<char>(toupper(static_cast<unsigned char>(locator[i])));
   }
 
-  if (strcmp(normalized, "L09UO") == 0) return "Home";
+  if (strcmp(normalized, "EL09UO") == 0) return "Home";
   if (strcmp(normalized, "EL09UO") == 0) return "Home";
   if (strcmp(normalized, "EL19EO") == 0) return "Palmetto SP";
   if (strcmp(normalized, "EL19FO") == 0) return "Palmetto SP";
