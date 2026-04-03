@@ -42,7 +42,6 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t GPS_BAUD = 9600;
 constexpr unsigned long SERIAL_WAIT_MS = 3000UL;
 constexpr unsigned long ACQUIRING_GPS_MIN_MS = 5000UL;
-constexpr unsigned long DISPLAY_UPDATE_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
 constexpr unsigned long GPS_LOCK_STATUS_MS = 1000UL;
@@ -56,8 +55,11 @@ TinyGPSPlus gps;
 OneWire oneWire(Pins::ONE_WIRE);
 DallasTemperature tempSensors(&oneWire);
 
-unsigned long lastDisplayUpdateMs = 0;
 unsigned long lastGpsResyncMs = 0;
+int lastDisplayedYear = -1;
+int lastDisplayedDay = -1;
+int lastDisplayedHour = -1;
+int lastDisplayedMinute = -1;
 char serialCommandBuffer[SERIAL_COMMAND_BUFFER_SIZE] = {0};
 size_t serialCommandLength = 0;
 
@@ -336,7 +338,7 @@ void updateDisplay() {
   char line3[32] = {0};
   char line4[32] = {0};
 
-  snprintf(timeLine, sizeof(timeLine), "%02d:%02d:%02d", hour(), minute(), second());
+  snprintf(timeLine, sizeof(timeLine), "%02d:%02d", hour(), minute());
   snprintf(line1, sizeof(line1), "UTC %04d-%02d-%02d", year(), month(), day());
   snprintf(line2, sizeof(line2), "Grid %s", locator);
   snprintf(line3, sizeof(line3), "Sats %lu", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
@@ -387,6 +389,21 @@ void updateDisplay() {
   Serial.println(gps.satellites.value());
 }
 
+bool shouldUpdateDisplayForCurrentMinute() {
+  if (year() != lastDisplayedYear ||
+      day() != lastDisplayedDay ||
+      hour() != lastDisplayedHour ||
+      minute() != lastDisplayedMinute) {
+    lastDisplayedYear = year();
+    lastDisplayedDay = day();
+    lastDisplayedHour = hour();
+    lastDisplayedMinute = minute();
+    return true;
+  }
+
+  return false;
+}
+
 void setup() {
   initializePins();
   initializeSerial();
@@ -397,6 +414,8 @@ void setup() {
   waitForFreshGpsLock();
   syncSystemTimeFromGps();
   lastGpsResyncMs = millis();
+  updateDisplay();
+  shouldUpdateDisplayForCurrentMinute();
   Serial.println(F("GPS lock acquired."));
 }
 
@@ -411,8 +430,7 @@ void loop() {
     lastGpsResyncMs = nowMs;
   }
 
-  if (nowMs - lastDisplayUpdateMs >= DISPLAY_UPDATE_MS) {
+  if (shouldUpdateDisplayForCurrentMinute()) {
     updateDisplay();
-    lastDisplayUpdateMs = nowMs;
   }
 }
