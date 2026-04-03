@@ -201,6 +201,13 @@ void drawCenteredText(const char* text, const GFXfont* font, int16_t centerX, in
   display.print(text);
 }
 
+void drawTemperatureIcon(int16_t x, int16_t y) {
+  display.drawRoundRect(x + 3, y, 6, 16, 3, GxEPD_BLACK);
+  display.fillRect(x + 5, y + 3, 2, 8, GxEPD_BLACK);
+  display.fillCircle(x + 6, y + 18, 5, GxEPD_BLACK);
+  display.fillCircle(x + 6, y + 18, 2, GxEPD_WHITE);
+}
+
 void renderDisplayLines(const char* line1,
                         const char* line2 = "",
                         const char* line3 = "",
@@ -494,8 +501,10 @@ void updateDisplay() {
 
   char timeLine[16] = {0};
   char dateLine[32] = {0};
-  char line1[32] = {0};
-  char line2[32] = {0};
+  char line1[40] = {0};
+  char line2[40] = {0};
+  char line3[40] = {0};
+  char footerLine[32] = {0};
   const char* county = countyForGrid(locator);
   const char* park = parkForGrid(locator);
 
@@ -503,6 +512,8 @@ void updateDisplay() {
   snprintf(dateLine, sizeof(dateLine), "%02d %s %04d", day(), MONTH_NAMES[month() - 1], year());
   snprintf(line1, sizeof(line1), "%s", locator);
   snprintf(line2, sizeof(line2), "%s", county);
+  snprintf(line3, sizeof(line3), "%s", park);
+  snprintf(footerLine, sizeof(footerLine), "GPS lock - %lu sats", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
 
   const GFXfont* timeFont = &FreeMonoBold24pt7b;
   if (!textFits(timeFont, timeLine, display.width() - 4, 44)) {
@@ -517,22 +528,34 @@ void updateDisplay() {
     dateFont = &FreeSans12pt7b;
   }
 
+  const GFXfont* tempFont = &FreeSansBold12pt7b;
+
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
     drawCenteredText(timeLine, timeFont, display.width() / 2, 24);
     drawCenteredText(dateLine, dateFont, display.width() / 2, 59);
+    display.drawLine(8, 76, display.width() - 8, 76, GxEPD_BLACK);
+
     display.setFont();
-    display.setCursor(0, 91);
+    display.setCursor(8, 96);
     display.println(line1);
     if (line2[0] != '\0') {
-      display.setCursor(0, 107);
+      display.setCursor(8, 112);
       display.println(line2);
     }
-    if (park[0] != '\0') {
-      display.setCursor(0, 123);
-      display.println(park);
+    if (line3[0] != '\0') {
+      display.setCursor(8, 128);
+      display.println(line3);
     }
+
+    display.setCursor(8, 190);
+    display.print(footerLine);
+
+    drawTemperatureIcon(154, 171);
+    display.setFont(tempFont);
+    display.setCursor(168, 188);
+    display.print("77F");
   } while (display.nextPage());
   display.hibernate();
 
