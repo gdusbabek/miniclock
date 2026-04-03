@@ -52,6 +52,10 @@ constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
 constexpr unsigned long GPS_LOCK_STATUS_MS = 1000UL;
 constexpr size_t SERIAL_COMMAND_BUFFER_SIZE = 64;
+constexpr uint8_t FULL_REFRESH_INTERVAL_MINUTES = 4;
+constexpr uint16_t PARTIAL_HEADER_HEIGHT = 80;
+constexpr uint16_t PARTIAL_FOOTER_Y = 168;
+constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
   GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
@@ -73,6 +77,10 @@ bool locationOverrideActive = false;
 double locationOverrideLat = 0.0;
 double locationOverrideLon = 0.0;
 unsigned long locationOverrideExpiresMs = 0;
+uint8_t minuteUpdatesSinceFullRefresh = 0;
+bool displayNeedsFullRefresh = false;
+
+void updateDisplay(bool forceFullRefresh = false);
 
 const char* const MONTH_NAMES[] = {
   "January",
@@ -223,6 +231,69 @@ void drawTemperatureIcon(int16_t x, int16_t y) {
   display.fillRect(x + 5, y + 3, 2, 8, GxEPD_BLACK);
   display.fillCircle(x + 6, y + 18, 5, GxEPD_BLACK);
   display.fillCircle(x + 6, y + 18, 2, GxEPD_WHITE);
+}
+
+void drawDisplayHeader(const char* timeLine,
+                       const GFXfont* timeFont,
+                       const char* dateLine,
+                       const GFXfont* dateFont) {
+  drawCenteredText(timeLine, timeFont, display.width() / 2, 24);
+  drawCenteredText(dateLine, dateFont, display.width() / 2, 59);
+  display.drawLine(8, 76, display.width() - 8, 76, GxEPD_BLACK);
+}
+
+void drawDisplayLocationBlock(const char* locator,
+                              const char* countyLine,
+                              const char* potaLine,
+                              const char* parkLine) {
+  const GFXfont* locatorFont = &FreeSans12pt7b;
+  const GFXfont* locationFont = &FreeSans9pt7b;
+
+  int16_t rowY = 96;
+  display.setFont(locatorFont);
+  display.setCursor(8, rowY);
+  display.println(locator);
+  rowY += 18;
+
+  display.setFont(locationFont);
+  if (countyLine[0] != '\0') {
+    display.setCursor(8, rowY);
+    display.println(countyLine);
+    rowY += 18;
+  }
+  if (potaLine[0] != '\0') {
+    display.setCursor(8, rowY);
+    display.println(potaLine);
+    rowY += 18;
+  }
+  if (parkLine[0] != '\0') {
+    display.setCursor(8, rowY);
+    display.println(parkLine);
+  }
+}
+
+void drawDisplayFooter(const char* footerLine, const GFXfont* tempFont) {
+  display.setFont();
+  display.setCursor(8, 190);
+  display.print(footerLine);
+
+  drawTemperatureIcon(154, 171);
+  display.setFont(tempFont);
+  display.setCursor(168, 188);
+  display.print("77F");
+}
+
+void finishDisplayUpdate(bool fullRefresh) {
+  if (fullRefresh) {
+    minuteUpdatesSinceFullRefresh = 0;
+    display.hibernate();
+    return;
+  }
+
+  if (minuteUpdatesSinceFullRefresh < 255) {
+    ++minuteUpdatesSinceFullRefresh;
+  }
+  display.powerOff();
 }
 
 void renderDisplayLines(const char* line1,
@@ -470,7 +541,7 @@ bool parseLocationOverrideCommand(const char* command) {
   }
 
   setLocationOverride(latitude, longitude);
-  updateDisplay();
+  updateDisplay(true);
   return true;
 }
 
@@ -511,7 +582,7 @@ void consumeSerialCommands() {
   }
 }
 
-void updateDisplay() {
+void updateDisplay(bool forceFullRefresh) {
   const char* locator = currentLocationValid()
     ? get_mh(currentLatitude(), currentLongitude(), 6)
     : "------";
@@ -546,46 +617,40 @@ void updateDisplay() {
     dateFont = &FreeSans12pt7b;
   }
 
-  const GFXfont* locationFont = &FreeSans9pt7b;
   const GFXfont* tempFont = &FreeSansBold12pt7b;
+  const bool usePartialRefresh =
+    !forceFullRefresh &&
+    GxEPD2_DRIVER_CLASS::hasFastPartialUpdate &&
+    minuteUpdatesSinceFullRefresh < (FULL_REFRESH_INTERVAL_MINUTES - 1);
 
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    drawCenteredText(timeLine, timeFont, display.width() / 2, 24);
-    drawCenteredText(dateLine, dateFont, display.width() / 2, 59);
-    display.drawLine(8, 76, display.width() - 8, 76, GxEPD_BLACK);
+  if (usePartialRefresh) {
+    display.setPartialWindow(0, 0, display.width(), PARTIAL_HEADER_HEIGHT);
+    display.firstPage();
+    do {
+      display.fillScreen(GxEPD_WHITE);
+      drawDisplayHeader(timeLine, timeFont, dateLine, dateFont);
+    } while (display.nextPage());
 
-    display.setFont(locationFont);
-    int16_t rowY = 96;
-    display.setCursor(8, rowY);
-    display.println(locator);
-    rowY += 18;
-    if (countyLine[0] != '\0') {
-      display.setCursor(8, rowY);
-      display.println(countyLine);
-      rowY += 18;
-    }
-    if (potaLine[0] != '\0') {
-      display.setCursor(8, rowY);
-      display.println(potaLine);
-      rowY += 18;
-    }
-    if (parkLine[0] != '\0') {
-      display.setCursor(8, rowY);
-      display.println(parkLine);
-    }
+    display.setPartialWindow(0, PARTIAL_FOOTER_Y, display.width(), PARTIAL_FOOTER_HEIGHT);
+    display.firstPage();
+    do {
+      display.fillScreen(GxEPD_WHITE);
+      drawDisplayFooter(footerLine, tempFont);
+    } while (display.nextPage());
 
-    display.setFont();
-    display.setCursor(8, 190);
-    display.print(footerLine);
+    finishDisplayUpdate(false);
+  } else {
+    display.setFullWindow();
+    display.firstPage();
+    do {
+      display.fillScreen(GxEPD_WHITE);
+      drawDisplayHeader(timeLine, timeFont, dateLine, dateFont);
+      drawDisplayLocationBlock(locator, countyLine, potaLine, parkLine);
+      drawDisplayFooter(footerLine, tempFont);
+    } while (display.nextPage());
 
-    drawTemperatureIcon(154, 171);
-    display.setFont(tempFont);
-    display.setCursor(168, 188);
-    display.print("77F");
-  } while (display.nextPage());
-  display.hibernate();
+    finishDisplayUpdate(true);
+  }
 
   Serial.print(F("UTC "));
   Serial.print(year());
@@ -597,6 +662,7 @@ void updateDisplay() {
   Serial.print(hour());
   Serial.print(F(":"));
   Serial.print(minute());
+  Serial.print(usePartialRefresh ? F("  PARTIAL ") : F("  FULL "));
   Serial.print(F("  Grid "));
   Serial.print(locator);
   Serial.print(F("  Sats "));
@@ -610,6 +676,7 @@ bool shouldUpdateDisplayForCurrentMinute() {
       hour() != lastDisplayedHour ||
       minute() != lastDisplayedMinute ||
       usingLocationOverride != lastDisplayedUsedLocationOverride) {
+    displayNeedsFullRefresh = usingLocationOverride != lastDisplayedUsedLocationOverride;
     lastDisplayedYear = year();
     lastDisplayedDay = day();
     lastDisplayedHour = hour();
@@ -630,7 +697,7 @@ void setup() {
   waitForFreshGpsLock();
   syncSystemTimeFromGps();
   lastGpsResyncMs = millis();
-  updateDisplay();
+  updateDisplay(true);
   shouldUpdateDisplayForCurrentMinute();
   Serial.println(F("GPS lock acquired."));
 }
@@ -647,6 +714,7 @@ void loop() {
   }
 
   if (shouldUpdateDisplayForCurrentMinute()) {
-    updateDisplay();
+    updateDisplay(displayNeedsFullRefresh);
+    displayNeedsFullRefresh = false;
   }
 }
