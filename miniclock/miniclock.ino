@@ -9,6 +9,7 @@
 #include <Fonts/FreeMonoBold12pt7b.h>
 #include <Fonts/FreeMonoBold18pt7b.h>
 #include <Fonts/FreeMonoBold24pt7b.h>
+#include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold24pt7b.h>
 #include <TinyGPS++.h>
@@ -61,6 +62,21 @@ int lastDisplayedHour = -1;
 int lastDisplayedMinute = -1;
 char serialCommandBuffer[SERIAL_COMMAND_BUFFER_SIZE] = {0};
 size_t serialCommandLength = 0;
+
+const char* const MONTH_NAMES[] = {
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+};
 
 void initializePins() {
   pinMode(Pins::EPD_CS, OUTPUT);
@@ -324,20 +340,21 @@ void updateDisplay() {
     : "------";
 
   char timeLine[16] = {0};
+  char dateLine[32] = {0};
   char line1[32] = {0};
   char line2[32] = {0};
   char line3[32] = {0};
   char line4[32] = {0};
 
   snprintf(timeLine, sizeof(timeLine), "%02d:%02d", hour(), minute());
-  snprintf(line1, sizeof(line1), "UTC %04d-%02d-%02d", year(), month(), day());
-  snprintf(line2, sizeof(line2), "Grid %s", locator);
-  snprintf(line3, sizeof(line3), "Sats %lu", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
+  snprintf(dateLine, sizeof(dateLine), "%02d %s %04d", day(), MONTH_NAMES[month() - 1], year());
+  snprintf(line1, sizeof(line1), "Grid %s", locator);
+  snprintf(line2, sizeof(line2), "Sats %lu", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
 
   if (gps.location.isValid()) {
-    snprintf(line4, sizeof(line4), "%.2f %.2f", gps.location.lat(), gps.location.lng());
+    snprintf(line3, sizeof(line3), "%.2f %.2f", gps.location.lat(), gps.location.lng());
   } else {
-    snprintf(line4, sizeof(line4), "No location");
+    snprintf(line3, sizeof(line3), "No location");
   }
 
   const GFXfont* timeFont = &FreeMonoBold24pt7b;
@@ -348,19 +365,23 @@ void updateDisplay() {
     timeFont = &FreeMonoBold12pt7b;
   }
 
+  const GFXfont* dateFont = &FreeSansBold18pt7b;
+  if (!textFits(dateFont, dateLine, display.width() - 4, 24)) {
+    dateFont = &FreeSansBold12pt7b;
+  }
+
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
     drawCenteredText(timeLine, timeFont, display.width() / 2, 24);
+    drawCenteredText(dateLine, dateFont, display.width() / 2, 56);
     display.setFont();
-    display.setCursor(0, 64);
+    display.setCursor(0, 88);
     display.println(line1);
-    display.setCursor(0, 84);
+    display.setCursor(0, 108);
     display.println(line2);
-    display.setCursor(0, 104);
+    display.setCursor(0, 128);
     display.println(line3);
-    display.setCursor(0, 124);
-    display.println(line4);
   } while (display.nextPage());
   display.hibernate();
 
