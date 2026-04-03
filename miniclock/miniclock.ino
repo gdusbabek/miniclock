@@ -96,6 +96,23 @@ const char* countyForGrid(const char* locator) {
   return "";
 }
 
+const char* parkForGrid(const char* locator) {
+  char normalized[7] = {0};
+  for (size_t i = 0; i < 6 && locator[i] != '\0'; ++i) {
+    normalized[i] = static_cast<char>(toupper(static_cast<unsigned char>(locator[i])));
+  }
+
+  if (strcmp(normalized, "L09UO") == 0) return "Home";
+  if (strcmp(normalized, "EL09UO") == 0) return "Home";
+  if (strcmp(normalized, "EL19EO") == 0) return "3045 Palmetto SP";
+  if (strcmp(normalized, "EL19FO") == 0) return "3045 Palmetto SP";
+  if (strcmp(normalized, "EL09RU") == 0) return "3017 Guadalupe Riv";
+  if (strcmp(normalized, "EL09SU") == 0) return "3017 Guadalupe Riv";
+  if (strcmp(normalized, "EL19DU") == 0) return "3033 Lockhart SP";
+  if (strcmp(normalized, "EL09SH") == 0) return "4568, 0756 Missions";
+  return "";
+}
+
 void initializePins() {
   pinMode(Pins::EPD_CS, OUTPUT);
   pinMode(Pins::EPD_DC, OUTPUT);
@@ -361,24 +378,13 @@ void updateDisplay() {
   char dateLine[32] = {0};
   char line1[32] = {0};
   char line2[32] = {0};
-  char line3[32] = {0};
-  char line4[32] = {0};
   const char* county = countyForGrid(locator);
+  const char* park = parkForGrid(locator);
 
   snprintf(timeLine, sizeof(timeLine), "%02d:%02d", hour(), minute());
   snprintf(dateLine, sizeof(dateLine), "%02d %s %04d", day(), MONTH_NAMES[month() - 1], year());
-  if (county[0] != '\0') {
-    snprintf(line1, sizeof(line1), "%s %s", locator, county);
-  } else {
-    snprintf(line1, sizeof(line1), "%s", locator);
-  }
-  snprintf(line2, sizeof(line2), "Sats %lu", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
-
-  if (gps.location.isValid()) {
-    snprintf(line3, sizeof(line3), "%.2f %.2f", gps.location.lat(), gps.location.lng());
-  } else {
-    snprintf(line3, sizeof(line3), "No location");
-  }
+  snprintf(line1, sizeof(line1), "%s", locator);
+  snprintf(line2, sizeof(line2), "%s", county);
 
   const GFXfont* timeFont = &FreeMonoBold24pt7b;
   if (!textFits(timeFont, timeLine, display.width() - 4, 44)) {
@@ -392,20 +398,23 @@ void updateDisplay() {
   if (!textFits(dateFont, dateLine, display.width() - 4, 24)) {
     dateFont = &FreeSansBold12pt7b;
   }
-  const GFXfont* infoFont = &FreeSansBold12pt7b;
 
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
     drawCenteredText(timeLine, timeFont, display.width() / 2, 24);
     drawCenteredText(dateLine, dateFont, display.width() / 2, 59);
-    display.setFont(infoFont);
+    display.setFont();
     display.setCursor(0, 91);
     display.println(line1);
-    display.setCursor(0, 111);
-    display.println(line2);
-    display.setCursor(0, 131);
-    display.println(line3);
+    if (line2[0] != '\0') {
+      display.setCursor(0, 107);
+      display.println(line2);
+    }
+    if (park[0] != '\0') {
+      display.setCursor(0, 123);
+      display.println(park);
+    }
   } while (display.nextPage());
   display.hibernate();
 
