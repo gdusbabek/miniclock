@@ -8,6 +8,7 @@
 #include <TimeLib.h>
 #include <Adafruit_SleepyDog.h>
 #include <GxEPD2_BW.h>
+#include <Bounce2.h>
 #include <Fonts/FreeMonoBold12pt7b.h>
 #include <Fonts/FreeMonoBold18pt7b.h>
 #include <Fonts/FreeMonoBold24pt7b.h>
@@ -57,7 +58,8 @@ constexpr uint16_t PARTIAL_HEADER_HEIGHT = 100;
 constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 constexpr float MIN_REASONABLE_TEMP_F = -50.0f;
-constexpr unsigned long BUTTON_DEBOUNCE_MS = 50UL;
+constexpr unsigned long BUTTON_DEBOUNCE_MS = 10UL;
+constexpr unsigned long BUTTON_LONG_PRESS_MS = 1500UL;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
   GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
@@ -84,9 +86,9 @@ uint8_t minuteUpdatesSinceFullRefresh = 0;
 bool displayNeedsFullRefresh = false;
 float cachedTemperatureF = -1000.0f;
 bool logGpsSentences = false;
-bool lastGpsLogToggleReading = HIGH;
-bool gpsLogTogglePressed = false;
-unsigned long lastGpsLogToggleChangeMs = 0;
+Bounce gpsLogToggleButton;
+unsigned long gpsLogTogglePressStartMs = 0;
+bool gpsLogToggleLongPressHandled = false;
 
 void updateDisplay(bool forceFullRefresh = false);
 
@@ -190,6 +192,8 @@ void initializePins() {
   pinMode(Pins::EPD_RST, OUTPUT);
   pinMode(Pins::EPD_BUSY, INPUT);
   pinMode(Pins::GPS_LOG_TOGGLE, INPUT_PULLUP);
+  gpsLogToggleButton.attach(Pins::GPS_LOG_TOGGLE, INPUT_PULLUP);
+  gpsLogToggleButton.interval(BUTTON_DEBOUNCE_MS);
 
   digitalWrite(Pins::EPD_CS, HIGH);
   digitalWrite(Pins::EPD_DC, LOW);
@@ -385,29 +389,26 @@ void syncSystemTimeFromGps() {
 }
 
 void updateGpsSentenceLoggingToggle() {
-  const bool reading = digitalRead(Pins::GPS_LOG_TOGGLE);
+  gpsLogToggleButton.update();
   const unsigned long nowMs = millis();
 
-  if (reading != lastGpsLogToggleReading) {
-    lastGpsLogToggleReading = reading;
-    lastGpsLogToggleChangeMs = nowMs;
+  if (gpsLogToggleButton.fell()) {
+    gpsLogTogglePressStartMs = nowMs;
+    gpsLogToggleLongPressHandled = false;
   }
 
-  if (nowMs - lastGpsLogToggleChangeMs < BUTTON_DEBOUNCE_MS) {
-    return;
+  if (gpsLogToggleButton.read() == LOW &&
+      !gpsLogToggleLongPressHandled &&
+      nowMs - gpsLogTogglePressStartMs >= BUTTON_LONG_PRESS_MS) {
+    gpsLogToggleLongPressHandled = true;
+    Serial.println(F("Restarting device..."));
+    NVIC_SystemReset();
   }
 
-  const bool pressed = reading == LOW;
-  if (pressed && !gpsLogTogglePressed) {
-    gpsLogTogglePressed = true;
+  if (gpsLogToggleButton.rose() && !gpsLogToggleLongPressHandled) {
     logGpsSentences = !logGpsSentences;
     Serial.print(F("NMEA logging "));
     Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
-    return;
-  }
-
-  if (!pressed && gpsLogTogglePressed) {
-    gpsLogTogglePressed = false;
   }
 }
 
