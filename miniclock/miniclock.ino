@@ -22,7 +22,6 @@
 #include <DallasTemperature.h>
 #include <maidenhead.h>
 
-#define LOG_GPS_SENTENCES 0
 #define GxEPD2_DISPLAY_CLASS GxEPD2_BW
 #define GxEPD2_DRIVER_CLASS GxEPD2_154_D67
 #define MAX_DISPLAY_BUFFER_SIZE 15000ul
@@ -33,12 +32,13 @@ namespace Pins {
 constexpr uint8_t GPS_RX = 7;
 constexpr uint8_t GPS_TX = 6;
 
-// Hardware SPI is fixed on this board: CLK/SCK=D8, MISO=D9, DIN/MOSI=D10.
-// Keep the control pins off those dedicated SPI pins.
+// Hardware SPI is fixed on this board: CLK/SCK=D8, DIN/MOSI=D10.
+// The display doesn't use MISO, so D9 can be repurposed for a button input.
 constexpr uint8_t EPD_CS = 1;
 constexpr uint8_t EPD_DC = 5;
 constexpr uint8_t EPD_RST = 4;
 constexpr uint8_t EPD_BUSY = 3;
+constexpr uint8_t GPS_LOG_TOGGLE = 9;
 
 // Optional DS18B20 data pin if you add the temperature sensor later.
 constexpr uint8_t ONE_WIRE = 2;
@@ -57,6 +57,7 @@ constexpr uint16_t PARTIAL_HEADER_HEIGHT = 100;
 constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 constexpr float MIN_REASONABLE_TEMP_F = -50.0f;
+constexpr unsigned long BUTTON_DEBOUNCE_MS = 50UL;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
   GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
@@ -82,6 +83,10 @@ unsigned long locationOverrideExpiresMs = 0;
 uint8_t minuteUpdatesSinceFullRefresh = 0;
 bool displayNeedsFullRefresh = false;
 float cachedTemperatureF = -1000.0f;
+bool logGpsSentences = false;
+bool lastGpsLogToggleReading = HIGH;
+bool gpsLogTogglePressed = false;
+unsigned long lastGpsLogToggleChangeMs = 0;
 
 void updateDisplay(bool forceFullRefresh = false);
 
@@ -184,6 +189,7 @@ void initializePins() {
   pinMode(Pins::EPD_DC, OUTPUT);
   pinMode(Pins::EPD_RST, OUTPUT);
   pinMode(Pins::EPD_BUSY, INPUT);
+  pinMode(Pins::GPS_LOG_TOGGLE, INPUT_PULLUP);
 
   digitalWrite(Pins::EPD_CS, HIGH);
   digitalWrite(Pins::EPD_DC, LOW);
@@ -378,6 +384,33 @@ void syncSystemTimeFromGps() {
   );
 }
 
+void updateGpsSentenceLoggingToggle() {
+  const bool reading = digitalRead(Pins::GPS_LOG_TOGGLE);
+  const unsigned long nowMs = millis();
+
+  if (reading != lastGpsLogToggleReading) {
+    lastGpsLogToggleReading = reading;
+    lastGpsLogToggleChangeMs = nowMs;
+  }
+
+  if (nowMs - lastGpsLogToggleChangeMs < BUTTON_DEBOUNCE_MS) {
+    return;
+  }
+
+  const bool pressed = reading == LOW;
+  if (pressed && !gpsLogTogglePressed) {
+    gpsLogTogglePressed = true;
+    logGpsSentences = !logGpsSentences;
+    Serial.print(F("NMEA logging "));
+    Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
+    return;
+  }
+
+  if (!pressed && gpsLogTogglePressed) {
+    gpsLogTogglePressed = false;
+  }
+}
+
 bool hasFreshGpsLock() {
   return gps.location.isValid() &&
          gps.date.isValid() &&
@@ -392,9 +425,9 @@ void consumeGpsData() {
     const char c = static_cast<char>(Serial1.read());
     gps.encode(c);
 
-#if LOG_GPS_SENTENCES
-    Serial.write(c);
-#endif
+    if (logGpsSentences) {
+      Serial.write(c);
+    }
   }
 }
 
@@ -402,6 +435,7 @@ void waitForFreshGpsLock() {
   unsigned long lastStatusMs = 0;
 
   while (!hasFreshGpsLock()) {
+    updateGpsSentenceLoggingToggle();
     consumeGpsData();
 
     const unsigned long nowMs = millis();
@@ -750,6 +784,7 @@ void setup() {
 }
 
 void loop() {
+  updateGpsSentenceLoggingToggle();
   consumeGpsData();
   consumeSerialCommands();
 
