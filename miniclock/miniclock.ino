@@ -116,8 +116,8 @@ const char* parkForGrid(const char* locator) {
   if (strcmp(normalized, "EL09UO") == 0) return "Home";
   if (strcmp(normalized, "EL19EO") == 0) return "Palmetto SP";
   if (strcmp(normalized, "EL19FO") == 0) return "Palmetto SP";
-  if (strcmp(normalized, "EL09RU") == 0) return "Guadalupe Riv SP";
-  if (strcmp(normalized, "EL09SU") == 0) return "Guadalupe Riv SP";
+  if (strcmp(normalized, "EL09RU") == 0) return "Guadalupe River SP";
+  if (strcmp(normalized, "EL09SU") == 0) return "Guadalupe River SP";
   if (strcmp(normalized, "EL19DU") == 0) return "Lockhart SP";
   if (strcmp(normalized, "EL09SH") == 0) return "SA Missions";
   return "";
