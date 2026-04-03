@@ -144,9 +144,7 @@ void renderDisplayLines(const char* line1,
 
 void showAcquiringGps() {
   Serial.println(F("Acquiring GPS..."));
-  const GFXfont* font = textFits(&FreeSansBold24pt7b, "Acquiring GPS", display.width() - 8, display.height() - 8)
-    ? &FreeSansBold24pt7b
-    : &FreeSansBold18pt7b;
+  const GFXfont* font = &FreeSansBold18pt7b;
 
   display.firstPage();
   do {
@@ -350,25 +348,25 @@ void updateDisplay() {
   }
 
   const GFXfont* timeFont = &FreeMonoBold24pt7b;
-  if (!textFits(timeFont, timeLine, display.width() - 8, 40)) {
+  if (!textFits(timeFont, timeLine, display.width() - 4, 44)) {
     timeFont = &FreeMonoBold18pt7b;
   }
-  if (!textFits(timeFont, timeLine, display.width() - 8, 40)) {
+  if (!textFits(timeFont, timeLine, display.width() - 4, 44)) {
     timeFont = &FreeMonoBold12pt7b;
   }
 
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
-    drawCenteredText(timeLine, timeFont, display.width() / 2, 28);
+    drawCenteredText(timeLine, timeFont, display.width() / 2, 24);
     display.setFont();
-    display.setCursor(0, 68);
+    display.setCursor(0, 64);
     display.println(line1);
-    display.setCursor(0, 88);
+    display.setCursor(0, 84);
     display.println(line2);
-    display.setCursor(0, 108);
+    display.setCursor(0, 104);
     display.println(line3);
-    display.setCursor(0, 128);
+    display.setCursor(0, 124);
     display.println(line4);
   } while (display.nextPage());
   display.hibernate();
