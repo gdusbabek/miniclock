@@ -249,7 +249,7 @@ void drawDisplayLocationBlock(const char* locator,
   const GFXfont* locatorFont = &FreeSans12pt7b;
   const GFXfont* locationFont = &FreeSans9pt7b;
 
-  int16_t rowY = 97;
+  int16_t rowY = 99;
   display.setFont(locatorFont);
   display.setCursor(8, rowY);
   display.println(locator);
