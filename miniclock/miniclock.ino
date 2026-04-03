@@ -56,6 +56,7 @@ constexpr uint8_t FULL_REFRESH_INTERVAL_MINUTES = 6;
 constexpr uint16_t PARTIAL_HEADER_HEIGHT = 100;
 constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
+constexpr float MIN_REASONABLE_TEMP_F = -50.0f;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
   GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
@@ -235,6 +236,20 @@ void drawTemperatureIcon(int16_t x, int16_t y) {
   display.fillCircle(x + 6, y + 18, 2, GxEPD_WHITE);
 }
 
+float readTemperatureF() {
+  tempSensors.requestTemperatures();
+  return tempSensors.getTempFByIndex(0);
+}
+
+void formatTemperature(char* buffer, size_t bufferSize, float temperatureF) {
+  if (temperatureF < MIN_REASONABLE_TEMP_F) {
+    snprintf(buffer, bufferSize, "??");
+    return;
+  }
+
+  snprintf(buffer, bufferSize, "%dF", static_cast<int>(temperatureF + (temperatureF >= 0.0f ? 0.5f : -0.5f)));
+}
+
 void drawDisplayHeader(const char* timeLine,
                        const GFXfont* timeFont,
                        const char* dateLine,
@@ -276,7 +291,7 @@ void drawDisplayLocationBlock(const char* locator,
   }
 }
 
-void drawDisplayFooter(const char* footerLine, const GFXfont* tempFont) {
+void drawDisplayFooter(const char* footerLine, const GFXfont* tempFont, const char* temperatureLine) {
   display.setFont();
   display.setCursor(8, 190);
   display.print(footerLine);
@@ -284,7 +299,7 @@ void drawDisplayFooter(const char* footerLine, const GFXfont* tempFont) {
   drawTemperatureIcon(154, 171);
   display.setFont(tempFont);
   display.setCursor(168, 188);
-  display.print("77F");
+  display.print(temperatureLine);
 }
 
 void finishDisplayUpdate(bool fullRefresh) {
@@ -597,9 +612,11 @@ void updateDisplay(bool forceFullRefresh) {
   char potaLine[40] = {0};
   char parkLine[40] = {0};
   char footerLine[32] = {0};
+  char temperatureLine[8] = {0};
   const char* county = countyForGrid(locator);
   const char* pota = potaForGrid(locator);
   const char* park = parkForGrid(locator);
+  const float temperatureF = readTemperatureF();
 
   snprintf(timeLine, sizeof(timeLine), "%02d:%02d", hour(), minute());
   snprintf(dateLine, sizeof(dateLine), "%02d %s %04d", day(), MONTH_NAMES[month() - 1], year());
@@ -607,6 +624,7 @@ void updateDisplay(bool forceFullRefresh) {
   snprintf(potaLine, sizeof(potaLine), "%s", pota);
   snprintf(parkLine, sizeof(parkLine), "%s", park);
   snprintf(footerLine, sizeof(footerLine), "GPS lock - %lu sats", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
+  formatTemperature(temperatureLine, sizeof(temperatureLine), temperatureF);
 
   const GFXfont* timeFont = &FreeMonoBold24pt7b;
   if (!textFits(timeFont, timeLine, display.width() - 4, 44)) {
@@ -639,7 +657,7 @@ void updateDisplay(bool forceFullRefresh) {
     display.firstPage();
     do {
       display.fillScreen(GxEPD_WHITE);
-      drawDisplayFooter(footerLine, tempFont);
+      drawDisplayFooter(footerLine, tempFont, temperatureLine);
     } while (display.nextPage());
 
     finishDisplayUpdate(false);
@@ -650,7 +668,7 @@ void updateDisplay(bool forceFullRefresh) {
       display.fillScreen(GxEPD_WHITE);
       drawDisplayHeader(timeLine, timeFont, dateLine, dateFont, potaLine);
       drawDisplayLocationBlock(locator, countyLine, potaLine, parkLine);
-      drawDisplayFooter(footerLine, tempFont);
+      drawDisplayFooter(footerLine, tempFont, temperatureLine);
     } while (display.nextPage());
 
     finishDisplayUpdate(true);
@@ -705,8 +723,8 @@ void setup() {
   initializePins();
   initializeSerial();
   initializeDisplay();
+  tempSensors.begin();
   showAcquiringGps();
-  // tempSensors.begin();
   waitForFreshGpsLock();
   syncSystemTimeFromGps();
   lastGpsResyncMs = millis();
