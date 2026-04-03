@@ -239,7 +239,7 @@ void drawDisplayHeader(const char* timeLine,
                        const GFXfont* dateFont) {
   drawCenteredText(timeLine, timeFont, display.width() / 2, 24);
   drawCenteredText(dateLine, dateFont, display.width() / 2, 59);
-  display.drawLine(8, 76, display.width() - 8, 76, GxEPD_BLACK);
+  display.drawLine(7, 76, display.width() - 8, 76, GxEPD_BLACK);
 }
 
 void drawDisplayLocationBlock(const char* locator,
@@ -249,7 +249,7 @@ void drawDisplayLocationBlock(const char* locator,
   const GFXfont* locatorFont = &FreeSans12pt7b;
   const GFXfont* locationFont = &FreeSans9pt7b;
 
-  int16_t rowY = 96;
+  int16_t rowY = 97;
   display.setFont(locatorFont);
   display.setCursor(8, rowY);
   display.println(locator);
