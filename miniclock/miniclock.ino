@@ -36,6 +36,7 @@ constexpr uint8_t ONE_WIRE = 2;
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t GPS_BAUD = 9600;
 constexpr unsigned long SERIAL_WAIT_MS = 3000UL;
+constexpr unsigned long WELCOME_MESSAGE_MS = 3000UL;
 constexpr unsigned long DISPLAY_UPDATE_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
@@ -116,6 +117,12 @@ void renderDisplayLines(const char* line1,
 void showAcquiringLock() {
   Serial.println(F("Acquiring lock..."));
   renderDisplayLines("Acquiring lock...", "Waiting for GPS...", "", "", "state over serial");
+}
+
+void showWelcomeMessage() {
+  Serial.println(F("Showing welcome message..."));
+  renderDisplayLines("MiniClock", "GPS UTC Clock", "", "", "Starting up...");
+  delay(WELCOME_MESSAGE_MS);
 }
 
 void syncSystemTimeFromGps() {
@@ -338,6 +345,7 @@ void setup() {
   initializePins();
   initializeSerial();
   initializeDisplay();
+  showWelcomeMessage();
   // tempSensors.begin();
   showAcquiringLock();
   waitForFreshGpsLock();
