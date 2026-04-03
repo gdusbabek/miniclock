@@ -81,6 +81,7 @@ double locationOverrideLon = 0.0;
 unsigned long locationOverrideExpiresMs = 0;
 uint8_t minuteUpdatesSinceFullRefresh = 0;
 bool displayNeedsFullRefresh = false;
+float cachedTemperatureF = -1000.0f;
 
 void updateDisplay(bool forceFullRefresh = false);
 
@@ -239,6 +240,11 @@ void drawTemperatureIcon(int16_t x, int16_t y) {
 float readTemperatureF() {
   tempSensors.requestTemperatures();
   return tempSensors.getTempFByIndex(0);
+}
+
+float pollTemperatureF() {
+  cachedTemperatureF = readTemperatureF();
+  return cachedTemperatureF;
 }
 
 void formatTemperature(char* buffer, size_t bufferSize, float temperatureF) {
@@ -570,6 +576,15 @@ void handleSerialCommand(const char* command) {
     return;
   }
 
+  if (strcmp(command, "temp") == 0) {
+    char temperatureLine[8] = {0};
+    formatTemperature(temperatureLine, sizeof(temperatureLine), pollTemperatureF());
+    Serial.print(F("temperature: "));
+    Serial.println(temperatureLine);
+    updateDisplay(true);
+    return;
+  }
+
   if (parseLocationOverrideCommand(command)) {
     return;
   }
@@ -616,7 +631,6 @@ void updateDisplay(bool forceFullRefresh) {
   const char* county = countyForGrid(locator);
   const char* pota = potaForGrid(locator);
   const char* park = parkForGrid(locator);
-  const float temperatureF = readTemperatureF();
 
   snprintf(timeLine, sizeof(timeLine), "%02d:%02d", hour(), minute());
   snprintf(dateLine, sizeof(dateLine), "%02d %s %04d", day(), MONTH_NAMES[month() - 1], year());
@@ -624,7 +638,6 @@ void updateDisplay(bool forceFullRefresh) {
   snprintf(potaLine, sizeof(potaLine), "%s", pota);
   snprintf(parkLine, sizeof(parkLine), "%s", park);
   snprintf(footerLine, sizeof(footerLine), "GPS lock - %lu sats", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
-  formatTemperature(temperatureLine, sizeof(temperatureLine), temperatureF);
 
   const GFXfont* timeFont = &FreeMonoBold24pt7b;
   if (!textFits(timeFont, timeLine, display.width() - 4, 44)) {
@@ -644,6 +657,8 @@ void updateDisplay(bool forceFullRefresh) {
     !forceFullRefresh &&
     GxEPD2_DRIVER_CLASS::hasFastPartialUpdate &&
     minuteUpdatesSinceFullRefresh < (FULL_REFRESH_INTERVAL_MINUTES - 1);
+  const float temperatureF = usePartialRefresh ? cachedTemperatureF : pollTemperatureF();
+  formatTemperature(temperatureLine, sizeof(temperatureLine), temperatureF);
 
   if (usePartialRefresh) {
     display.setPartialWindow(0, 0, display.width(), PARTIAL_HEADER_HEIGHT);
@@ -724,6 +739,7 @@ void setup() {
   initializeSerial();
   initializeDisplay();
   tempSensors.begin();
+  pollTemperatureF();
   showAcquiringGps();
   waitForFreshGpsLock();
   syncSystemTimeFromGps();
