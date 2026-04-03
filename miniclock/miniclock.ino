@@ -543,11 +543,11 @@ void updateDisplay() {
     display.setCursor(8, 96);
     display.println(line1);
     if (line2[0] != '\0') {
-      display.setCursor(8, 112);
+      display.setCursor(8, 114);
       display.println(line2);
     }
     if (line3[0] != '\0') {
-      display.setCursor(8, 128);
+      display.setCursor(8, 132);
       display.println(line3);
     }
 
