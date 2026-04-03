@@ -41,7 +41,6 @@ constexpr uint8_t ONE_WIRE = 2;
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t GPS_BAUD = 9600;
 constexpr unsigned long SERIAL_WAIT_MS = 3000UL;
-constexpr unsigned long ACQUIRING_GPS_MIN_MS = 5000UL;
 constexpr unsigned long GPS_RESYNC_MS = 60UL * 1000UL;
 constexpr unsigned long GPS_DATA_FRESH_MS = 2000UL;
 constexpr unsigned long GPS_LOCK_STATUS_MS = 1000UL;
@@ -154,14 +153,6 @@ void showAcquiringGps() {
     drawCenteredText("Acquiring GPS", font, display.width() / 2, display.height() / 2);
   } while (display.nextPage());
   display.hibernate();
-}
-
-void holdAcquiringGpsScreen() {
-  const unsigned long startMs = millis();
-  while (millis() - startMs < ACQUIRING_GPS_MIN_MS) {
-    consumeGpsData();
-    delay(10);
-  }
 }
 
 void syncSystemTimeFromGps() {
@@ -409,7 +400,6 @@ void setup() {
   initializeSerial();
   initializeDisplay();
   showAcquiringGps();
-  holdAcquiringGpsScreen();
   // tempSensors.begin();
   waitForFreshGpsLock();
   syncSystemTimeFromGps();
