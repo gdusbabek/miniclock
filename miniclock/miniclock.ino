@@ -551,6 +551,7 @@ void updateDisplay() {
       display.println(line3);
     }
 
+    display.setFont();
     display.setCursor(8, 190);
     display.print(footerLine);
 
