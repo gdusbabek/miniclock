@@ -145,7 +145,7 @@ const char* potaForGrid(const char* locator) {
     normalized[i] = static_cast<char>(toupper(static_cast<unsigned char>(locator[i])));
   }
 
-  if (strcmp(normalized, "EL09UO") == 0) return "";
+  if (strcmp(normalized, "EL09UO") == 0) return "Schertz";
   if (strcmp(normalized, "EL19EO") == 0) return "US-3045";
   if (strcmp(normalized, "EL19FO") == 0) return "US-3045";
   if (strcmp(normalized, "EL09RU") == 0) return "US-3017";
