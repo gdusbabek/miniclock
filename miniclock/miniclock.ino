@@ -87,6 +87,7 @@ float cachedTemperatureF = -1000.0f;
 bool logGpsSentences = false;
 Bounce gpsLogToggleButton;
 bool gpsLogToggleArmed = false;
+bool gpsLogToggleEventsEnabled = false;
 
 void updateDisplay(bool forceFullRefresh = false);
 
@@ -189,7 +190,8 @@ void initializePins() {
   pinMode(Pins::EPD_DC, OUTPUT);
   pinMode(Pins::EPD_RST, OUTPUT);
   pinMode(Pins::EPD_BUSY, INPUT);
-  gpsLogToggleButton.attach(Pins::GPS_LOG_TOGGLE, INPUT_PULLUP);
+  pinMode(Pins::GPS_LOG_TOGGLE, INPUT_PULLUP);
+  gpsLogToggleButton.attach(Pins::GPS_LOG_TOGGLE);
   gpsLogToggleButton.interval(BUTTON_DEBOUNCE_MS);
   gpsLogToggleButton.update();
   gpsLogToggleArmed = gpsLogToggleButton.read() == HIGH;
@@ -197,6 +199,12 @@ void initializePins() {
   digitalWrite(Pins::EPD_CS, HIGH);
   digitalWrite(Pins::EPD_DC, LOW);
   digitalWrite(Pins::EPD_RST, HIGH);
+}
+
+void enableGpsLogToggleEvents() {
+  gpsLogToggleButton.update();
+  gpsLogToggleArmed = gpsLogToggleButton.read() == HIGH;
+  gpsLogToggleEventsEnabled = true;
 }
 
 void initializeSerial() {
@@ -388,6 +396,11 @@ void syncSystemTimeFromGps() {
 }
 
 void updateGpsSentenceLoggingToggle() {
+  if (!gpsLogToggleEventsEnabled) {
+    gpsLogToggleButton.update();
+    return;
+  }
+
   gpsLogToggleButton.update();
 
   if (!gpsLogToggleArmed) {
@@ -782,6 +795,7 @@ void setup() {
   lastGpsResyncMs = millis();
   updateDisplay(true);
   shouldUpdateDisplayForCurrentMinute();
+  enableGpsLogToggleEvents();
   Serial.println(F("GPS lock acquired."));
 }
 
