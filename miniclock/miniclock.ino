@@ -89,6 +89,7 @@ bool logGpsSentences = false;
 Bounce gpsLogToggleButton;
 unsigned long gpsLogTogglePressStartMs = 0;
 bool gpsLogToggleLongPressHandled = false;
+bool gpsLogToggleArmed = false;
 
 void updateDisplay(bool forceFullRefresh = false);
 
@@ -391,6 +392,13 @@ void syncSystemTimeFromGps() {
 void updateGpsSentenceLoggingToggle() {
   gpsLogToggleButton.update();
   const unsigned long nowMs = millis();
+
+  if (!gpsLogToggleArmed) {
+    if (gpsLogToggleButton.read() == HIGH) {
+      gpsLogToggleArmed = true;
+    }
+    return;
+  }
 
   if (gpsLogToggleButton.fell()) {
     gpsLogTogglePressStartMs = nowMs;
