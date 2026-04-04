@@ -267,6 +267,44 @@ void logDisplaySpiDebug(const __FlashStringHelper* phase) {
   Serial.println();
 }
 
+void runDisplaySelfTest() {
+  Serial.println(F("[SPI] running e-paper self-test"));
+
+  display.setFullWindow();
+
+  Serial.println(F("[SPI] self-test: full black"));
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_BLACK);
+  } while (display.nextPage());
+  delay(750);
+
+  Serial.println(F("[SPI] self-test: full white"));
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+  } while (display.nextPage());
+  delay(750);
+
+  Serial.println(F("[SPI] self-test: border and checker"));
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    display.drawRect(4, 4, display.width() - 8, display.height() - 8, GxEPD_BLACK);
+    for (int16_t y = 16; y < display.height() - 16; y += 16) {
+      for (int16_t x = 16; x < display.width() - 16; x += 16) {
+        if (((x + y) / 16) % 2 == 0) {
+          display.fillRect(x, y, 8, 8, GxEPD_BLACK);
+        }
+      }
+    }
+  } while (display.nextPage());
+  delay(1000);
+
+  display.hibernate();
+  Serial.println(F("[SPI] e-paper self-test complete"));
+}
+
 void initializeDisplay() {
   logDisplaySpiDebug(F("before SPI.begin"));
   SPI.begin();
@@ -731,6 +769,12 @@ void handleSerialCommand(const char* command) {
     return;
   }
 
+  if (strcmp(command, "epdtest") == 0) {
+    runDisplaySelfTest();
+    updateDisplay(true);
+    return;
+  }
+
   if (parseLocationOverrideCommand(command)) {
     return;
   }
@@ -898,6 +942,7 @@ void setup() {
   initializePins();
   initializeSerial();
   initializeDisplay();
+  runDisplaySelfTest();
   tempSensors.begin();
   pollTemperatureF();
   showAcquiringGps();
