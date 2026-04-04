@@ -59,7 +59,6 @@ constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 constexpr float MIN_REASONABLE_TEMP_F = -50.0f;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 10UL;
-constexpr unsigned long BUTTON_LONG_PRESS_MS = 2000UL;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
   GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
@@ -87,8 +86,6 @@ bool displayNeedsFullRefresh = false;
 float cachedTemperatureF = -1000.0f;
 bool logGpsSentences = false;
 Bounce gpsLogToggleButton;
-unsigned long gpsLogTogglePressStartMs = 0;
-bool gpsLogToggleLongPressHandled = false;
 bool gpsLogToggleArmed = false;
 
 void updateDisplay(bool forceFullRefresh = false);
@@ -391,7 +388,6 @@ void syncSystemTimeFromGps() {
 
 void updateGpsSentenceLoggingToggle() {
   gpsLogToggleButton.update();
-  const unsigned long nowMs = millis();
 
   if (!gpsLogToggleArmed) {
     if (gpsLogToggleButton.read() == HIGH) {
@@ -400,20 +396,7 @@ void updateGpsSentenceLoggingToggle() {
     return;
   }
 
-  if (gpsLogToggleButton.fell()) {
-    gpsLogTogglePressStartMs = nowMs;
-    gpsLogToggleLongPressHandled = false;
-  }
-
-  if (gpsLogToggleButton.read() == LOW &&
-      !gpsLogToggleLongPressHandled &&
-      nowMs - gpsLogTogglePressStartMs >= BUTTON_LONG_PRESS_MS) {
-    gpsLogToggleLongPressHandled = true;
-    Serial.println(F("Restarting device..."));
-    NVIC_SystemReset();
-  }
-
-  if (gpsLogToggleButton.rose() && !gpsLogToggleLongPressHandled) {
+  if (gpsLogToggleButton.rose()) {
     logGpsSentences = !logGpsSentences;
     Serial.print(F("NMEA logging "));
     Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
