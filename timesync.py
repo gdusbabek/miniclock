@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import glob
 import os
@@ -273,37 +274,60 @@ def set_system_clock(target_utc: dt.datetime) -> bool:
     return True
 
 
+def adjusted_target_time(target_utc: dt.datetime) -> dt.datetime:
+    return target_utc + dt.timedelta(seconds=SET_TIME_OFFSET_SECONDS)
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Set the host clock from GPS NMEA time.")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report the time that would be set without changing the system clock.",
+    )
+    args = parser.parse_args()
+
     devices = candidate_serial_devices()
     if not devices:
         log("No likely SAMD21 serial device was found.")
         return 1
 
-    device = devices[0]
-    log(f"Using serial device {device}.")
+    for device in devices:
+        log(f"Trying serial device {device}.")
 
-    owner = serial_port_owner(device)
-    if owner is not None:
-        log(
-            f"Serial device {device} is already in use by process "
-            f"{owner[0]} (pid {owner[1]})."
-        )
-        return 1
+        owner = serial_port_owner(device)
+        if owner is not None:
+            log(
+                f"Serial device {device} is already in use by process "
+                f"{owner[0]} (pid {owner[1]})."
+            )
+            continue
 
-    try:
-        reader = SerialReader(device, GPS_BAUD)
-    except OSError as exc:
-        log(f"Failed to open serial device {device}: {exc}")
-        return 1
+        try:
+            reader = SerialReader(device, GPS_BAUD)
+        except OSError as exc:
+            log(f"Failed to open serial device {device}: {exc}")
+            continue
 
-    try:
-        target_utc = wait_for_confident_time(reader)
-        if target_utc is None:
-            return 1
-        log(f"GPS time established as {target_utc.isoformat()}.")
-        return 0 if set_system_clock(target_utc) else 1
-    finally:
-        reader.close()
+        try:
+            target_utc = wait_for_confident_time(reader)
+            if target_utc is None:
+                log(f"Did not get usable GPS time from {device}.")
+                continue
+
+            adjusted_utc = adjusted_target_time(target_utc)
+            log(f"GPS time established as {target_utc.isoformat()}.")
+
+            if args.dry_run:
+                log(f"Dry run: would set system clock to {adjusted_utc.isoformat()}.")
+                return 0
+
+            return 0 if set_system_clock(target_utc) else 1
+        finally:
+            reader.close()
+
+    log("Unable to find a usable GPS serial device.")
+    return 1
 
 
 if __name__ == "__main__":
