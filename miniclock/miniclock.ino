@@ -748,6 +748,17 @@ bool parseLocationOverrideCommand(const char* command) {
 }
 
 void handleSerialCommand(const char* command) {
+  if (strcmp(command, "help") == 0) {
+    Serial.println(F("Available commands:"));
+    Serial.println(F("  help      - list serial commands"));
+    Serial.println(F("  state     - print current GPS and clock state"));
+    Serial.println(F("  temp      - poll the temperature sensor and refresh the display"));
+    Serial.println(F("  epdtest   - run the e-paper self-test"));
+    Serial.println(F("  restart   - restart the device"));
+    Serial.println(F("  location LAT, LON - override GPS location for 5 minutes"));
+    return;
+  }
+
   if (strcmp(command, "state") == 0) {
     printState();
     return;
