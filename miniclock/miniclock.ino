@@ -58,6 +58,7 @@ constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 constexpr float MIN_REASONABLE_TEMP_F = -50.0f;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 10UL;
+constexpr uint32_t SETTINGS_MAGIC = 0x4D434C4BUL;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
   GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
@@ -66,6 +67,13 @@ GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> displ
 TinyGPSPlus gps;
 OneWire oneWire(Pins::ONE_WIRE);
 DallasTemperature tempSensors(&oneWire);
+
+struct StoredSettings {
+  uint32_t magic;
+  uint8_t logGpsSentences;
+};
+
+FlashStorage(settingsStorage, StoredSettings);
 
 unsigned long lastGpsResyncMs = 0;
 int lastDisplayedYear = -1;
@@ -89,6 +97,24 @@ bool gpsLogToggleArmed = false;
 bool gpsLogToggleEventsEnabled = false;
 
 void updateDisplay(bool forceFullRefresh = false);
+
+StoredSettings loadSettings() {
+  return settingsStorage.read();
+}
+
+void saveSettings() {
+  StoredSettings settings = {SETTINGS_MAGIC, static_cast<uint8_t>(logGpsSentences ? 1 : 0)};
+  settingsStorage.write(settings);
+}
+
+void loadSettingsIntoRuntime() {
+  const StoredSettings settings = loadSettings();
+  if (settings.magic != SETTINGS_MAGIC) {
+    logGpsSentences = false;
+    return;
+  }
+  logGpsSentences = settings.logGpsSentences != 0;
+}
 
 const char* const MONTH_NAMES[] = {
   "January",
@@ -253,6 +279,38 @@ void drawTemperatureIcon(int16_t x, int16_t y) {
   display.fillCircle(x + 6, y + 18, 2, GxEPD_WHITE);
 }
 
+uint8_t gpsLockQuality() {
+  if (!gps.location.isValid() || !gps.date.isValid() || !gps.time.isValid()) {
+    return 0;
+  }
+
+  const unsigned long satellites = gps.satellites.isValid() ? gps.satellites.value() : 0UL;
+  const bool fresh =
+    gps.location.age() <= GPS_DATA_FRESH_MS &&
+    gps.date.age() <= GPS_DATA_FRESH_MS &&
+    gps.time.age() <= GPS_DATA_FRESH_MS;
+
+  if (!fresh || satellites < 4) {
+    return 1;
+  }
+  if (satellites < 8) {
+    return 2;
+  }
+  return 3;
+}
+
+void drawGpsLockQualityIcon(int16_t x, int16_t baselineY, uint8_t quality) {
+  for (uint8_t i = 0; i < 3; ++i) {
+    const int16_t barX = x + (i * 4);
+    const int16_t barHeight = 4 + (i * 3);
+    const int16_t barY = baselineY - barHeight;
+    display.drawRect(barX, barY, 3, barHeight, GxEPD_BLACK);
+    if (quality > i) {
+      display.fillRect(barX, barY, 3, barHeight, GxEPD_BLACK);
+    }
+  }
+}
+
 float readTemperatureF() {
   tempSensors.requestTemperatures();
   return tempSensors.getTempFByIndex(0);
@@ -314,9 +372,15 @@ void drawDisplayLocationBlock(const char* locator,
 }
 
 void drawDisplayFooter(const char* footerLine, const GFXfont* tempFont, const char* temperatureLine) {
+  drawGpsLockQualityIcon(8, 190, gpsLockQuality());
   display.setFont();
-  display.setCursor(8, 190);
+  display.setCursor(24, 190);
   display.print(footerLine);
+
+  if (logGpsSentences) {
+    display.setCursor(128, 176);
+    display.print("NMEA");
+  }
 
   drawTemperatureIcon(154, 171);
   display.setFont(tempFont);
@@ -411,8 +475,10 @@ void updateGpsSentenceLoggingToggle() {
 
   if (gpsLogToggleButton.fell()) {
     logGpsSentences = !logGpsSentences;
+    saveSettings();
     Serial.print(F("NMEA logging "));
     Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
+    updateDisplay(true);
   }
 }
 
@@ -781,6 +847,7 @@ bool shouldUpdateDisplayForCurrentMinute() {
 }
 
 void setup() {
+  loadSettingsIntoRuntime();
   initializePins();
   initializeSerial();
   initializeDisplay();
