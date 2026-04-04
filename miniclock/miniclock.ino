@@ -754,16 +754,16 @@ void updateDisplay(bool forceFullRefresh) {
   snprintf(parkLine, sizeof(parkLine), "%s", park);
   switch (gpsLockQuality()) {
     case 0:
-      snprintf(footerLine, sizeof(footerLine), "No lock");
+      snprintf(footerLine, sizeof(footerLine), "No Lock");
       break;
     case 1:
-      snprintf(footerLine, sizeof(footerLine), "GPS Weak");
+      snprintf(footerLine, sizeof(footerLine), "Weak");
       break;
     case 2:
-      snprintf(footerLine, sizeof(footerLine), "GPS Ok");
+      snprintf(footerLine, sizeof(footerLine), "OK");
       break;
     default:
-      snprintf(footerLine, sizeof(footerLine), "GPS Good");
+      snprintf(footerLine, sizeof(footerLine), "Good");
       break;
   }
 
