@@ -8,6 +8,7 @@ Portable GPS-disciplined UTC clock for ham radio use, built around a Seeeduino X
 - Shows UTC time and date on the e-paper display
 - Shows Maidenhead grid, county, and park/POTA information when available
 - Reads a DS18B20 temperature sensor and displays Fahrenheit
+- Shows a compact GPS lock-quality icon in the footer
 - Supports minute-by-minute partial e-paper refreshes with periodic full refreshes
 - Includes a host-side `timesync.py` utility to set the computer clock from GPS time
 
@@ -39,6 +40,7 @@ Board SPI note:
 - Time is displayed as UTC in `HH:MM` format.
 - The display refreshes each minute.
 - E-paper partial refresh is used between periodic full refreshes.
+- The footer includes a small GPS lock-quality icon.
 - Temperature below `-50F` is treated as invalid and shown as `??`.
 
 ## Serial Commands
@@ -59,6 +61,8 @@ The firmware listens on USB serial at `115200`.
 
 - NMEA sentence logging defaults to off at startup.
 - Pressing the `D0` button toggles NMEA passthrough to USB serial on and off.
+- The NMEA logging preference is persisted in flash storage across reboots.
+- When NMEA logging is enabled, the display shows a small `NMEA` tag in the footer.
 - The button handler is debounced with `Bounce2`.
 - Button events are ignored until startup is complete, which avoids false triggers during boot.
 
@@ -70,6 +74,7 @@ What it does:
 
 - Finds likely SAMD21 serial devices
 - Checks whether the chosen serial port is already owned by another process
+- Tries multiple matching serial devices automatically until one works
 - Reads NMEA data directly from the serial port
 - Parses `RMC` and `ZDA` sentences, including fractional seconds
 - Uses microsecond-resolution `settimeofday()` to set the system clock
@@ -79,6 +84,12 @@ Run it with `sudo`:
 
 ```bash
 sudo python3 timesync.py
+```
+
+Dry-run mode:
+
+```bash
+python3 timesync.py --dry-run
 ```
 
 If the serial port is busy, the script reports the owning process name and pid and exits.
