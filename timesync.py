@@ -6,6 +6,7 @@ import datetime as dt
 import glob
 import os
 import select
+import subprocess
 import sys
 import termios
 import time
@@ -48,6 +49,35 @@ def candidate_serial_devices() -> list[str]:
     for pattern in patterns:
         devices.extend(glob.glob(pattern))
     return sorted(dict.fromkeys(devices))
+
+
+def serial_port_owner(path: str) -> tuple[str, int] | None:
+    result = subprocess.run(
+        ["/usr/sbin/lsof", "-Fpc", path],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        return None
+
+    command_name: str | None = None
+    pid: int | None = None
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
+        prefix = line[0]
+        value = line[1:]
+        if prefix == "p":
+            try:
+                pid = int(value)
+            except ValueError:
+                pid = None
+        elif prefix == "c":
+            command_name = value
+            if command_name is not None and pid is not None:
+                return command_name, pid
+    return None
 
 
 class SerialReader:
@@ -251,6 +281,14 @@ def main() -> int:
 
     device = devices[0]
     log(f"Using serial device {device}.")
+
+    owner = serial_port_owner(device)
+    if owner is not None:
+        log(
+            f"Serial device {device} is already in use by process "
+            f"{owner[0]} (pid {owner[1]})."
+        )
+        return 1
 
     try:
         reader = SerialReader(device, GPS_BAUD)
