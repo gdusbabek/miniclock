@@ -6,10 +6,11 @@ import datetime as dt
 import glob
 import os
 import select
-import subprocess
 import sys
 import termios
 import time
+import ctypes
+import ctypes.util
 
 
 GPS_BAUD = 9600
@@ -17,7 +18,16 @@ NMEA_TIMEOUT_SECONDS = 15.0
 CONFIDENCE_SAMPLES = 2
 CONFIDENCE_WINDOW_SECONDS = 5.0
 SYSTEM_TIME_TOLERANCE_SECONDS = 2.0
-SET_TIME_OFFSET_SECONDS = 0.2
+SET_TIME_OFFSET_SECONDS = 0.0
+
+
+class Timeval(ctypes.Structure):
+    _fields_ = [("tv_sec", ctypes.c_long), ("tv_usec", ctypes.c_int)]
+
+
+LIBC = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+LIBC.settimeofday.argtypes = [ctypes.POINTER(Timeval), ctypes.c_void_p]
+LIBC.settimeofday.restype = ctypes.c_int
 
 
 def log(message: str) -> None:
@@ -103,16 +113,21 @@ def checksum_ok(sentence: str) -> bool:
         return False
 
 
-def parse_hms(value: str) -> tuple[int, int, int] | None:
+def parse_hms(value: str) -> tuple[int, int, int, int] | None:
     if len(value) < 6:
         return None
     try:
         hour = int(value[0:2])
         minute = int(value[2:4])
         second = int(value[4:6])
+        microsecond = 0
+        if len(value) > 6 and value[6] == ".":
+            fractional = value[7:]
+            if fractional:
+                microsecond = int((fractional[:6]).ljust(6, "0"))
     except ValueError:
         return None
-    return hour, minute, second
+    return hour, minute, second, microsecond
 
 
 def parse_rmc(parts: list[str]) -> dt.datetime | None:
@@ -125,7 +140,7 @@ def parse_rmc(parts: list[str]) -> dt.datetime | None:
         day = int(parts[9][0:2])
         month = int(parts[9][2:4])
         year = 2000 + int(parts[9][4:6])
-        return dt.datetime(year, month, day, hms[0], hms[1], hms[2], tzinfo=dt.timezone.utc)
+        return dt.datetime(year, month, day, hms[0], hms[1], hms[2], hms[3], tzinfo=dt.timezone.utc)
     except ValueError:
         return None
 
@@ -140,7 +155,7 @@ def parse_zda(parts: list[str]) -> dt.datetime | None:
         day = int(parts[2])
         month = int(parts[3])
         year = int(parts[4])
-        return dt.datetime(year, month, day, hms[0], hms[1], hms[2], tzinfo=dt.timezone.utc)
+        return dt.datetime(year, month, day, hms[0], hms[1], hms[2], hms[3], tzinfo=dt.timezone.utc)
     except ValueError:
         return None
 
@@ -202,16 +217,17 @@ def set_system_clock(target_utc: dt.datetime) -> bool:
         return False
 
     adjusted_target_utc = target_utc + dt.timedelta(seconds=SET_TIME_OFFSET_SECONDS)
-    date_arg = adjusted_target_utc.strftime("%m%d%H%M%y.%S")
-    result = subprocess.run(
-        ["date", "-u", date_arg],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        stderr = result.stderr.strip() or result.stdout.strip() or "date command failed"
-        log(f"Failed to set the system clock: {stderr}")
+    epoch_seconds = adjusted_target_utc.timestamp()
+    whole_seconds = int(epoch_seconds)
+    microseconds = int(round((epoch_seconds - whole_seconds) * 1_000_000))
+    if microseconds >= 1_000_000:
+        whole_seconds += 1
+        microseconds -= 1_000_000
+
+    timeval = Timeval(tv_sec=whole_seconds, tv_usec=microseconds)
+    if LIBC.settimeofday(ctypes.byref(timeval), None) != 0:
+        err = ctypes.get_errno()
+        log(f"Failed to set the system clock: {os.strerror(err)}")
         return False
 
     system_now = dt.datetime.now(dt.timezone.utc)
