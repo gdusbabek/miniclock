@@ -59,7 +59,7 @@ constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 constexpr float MIN_REASONABLE_TEMP_F = -50.0f;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 10UL;
-constexpr unsigned long BUTTON_LONG_PRESS_MS = 1500UL;
+constexpr unsigned long BUTTON_LONG_PRESS_MS = 2000UL;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
   GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
