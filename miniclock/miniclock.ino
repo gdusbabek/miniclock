@@ -372,12 +372,15 @@ void drawDisplayLocationBlock(const char* locator,
 }
 
 void drawDisplayFooter(const char* footerLine, const GFXfont* tempFont, const char* temperatureLine) {
-  drawGpsLockQualityIcon(8, 190, gpsLockQuality());
-  display.setFont();
-  display.setCursor(24, 190);
+  const GFXfont* footerFont = &FreeSans9pt7b;
+
+  drawGpsLockQualityIcon(8, 194, gpsLockQuality());
+  display.setFont(footerFont);
+  display.setCursor(24, 194);
   display.print(footerLine);
 
   if (logGpsSentences) {
+    display.setFont();
     display.setCursor(128, 176);
     display.print("NMEA");
   }
@@ -749,7 +752,20 @@ void updateDisplay(bool forceFullRefresh) {
   snprintf(countyLine, sizeof(countyLine), "%s", county);
   snprintf(potaLine, sizeof(potaLine), "%s", pota);
   snprintf(parkLine, sizeof(parkLine), "%s", park);
-  snprintf(footerLine, sizeof(footerLine), "GPS lock - %lu sats", gps.satellites.isValid() ? gps.satellites.value() : 0UL);
+  switch (gpsLockQuality()) {
+    case 0:
+      snprintf(footerLine, sizeof(footerLine), "No lock");
+      break;
+    case 1:
+      snprintf(footerLine, sizeof(footerLine), "GPS Weak");
+      break;
+    case 2:
+      snprintf(footerLine, sizeof(footerLine), "GPS Ok");
+      break;
+    default:
+      snprintf(footerLine, sizeof(footerLine), "GPS Good");
+      break;
+  }
 
   const GFXfont* timeFont = &FreeMonoBold24pt7b;
   if (!textFits(timeFont, timeLine, display.width() - 4, 44)) {
