@@ -605,6 +605,13 @@ void handleSerialCommand(const char* command) {
     return;
   }
 
+  if (strcmp(command, "restart") == 0) {
+    Serial.println(F("Restarting device..."));
+    Serial.flush();
+    NVIC_SystemReset();
+    return;
+  }
+
   if (strcmp(command, "temp") == 0) {
     char temperatureLine[8] = {0};
     formatTemperature(temperatureLine, sizeof(temperatureLine), pollTemperatureF());
