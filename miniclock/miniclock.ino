@@ -241,12 +241,43 @@ void initializeSerial() {
   Serial1.begin(GPS_BAUD);
 }
 
+void printPinLevel(const __FlashStringHelper* label, uint8_t pin) {
+  Serial.print(label);
+  Serial.print(F("="));
+  Serial.print(pin);
+  Serial.print(F("("));
+  Serial.print(digitalRead(pin) == HIGH ? F("HIGH") : F("LOW"));
+  Serial.print(F(") "));
+}
+
+void logDisplaySpiDebug(const __FlashStringHelper* phase) {
+  Serial.print(F("[SPI] "));
+  Serial.println(phase);
+  Serial.print(F("[SPI] bus SCK="));
+  Serial.print(8);
+  Serial.print(F(" MISO="));
+  Serial.print(9);
+  Serial.print(F(" MOSI="));
+  Serial.println(10);
+  Serial.print(F("[SPI] epd "));
+  printPinLevel(F("CS"), Pins::EPD_CS);
+  printPinLevel(F("DC"), Pins::EPD_DC);
+  printPinLevel(F("RST"), Pins::EPD_RST);
+  printPinLevel(F("BUSY"), Pins::EPD_BUSY);
+  Serial.println();
+}
+
 void initializeDisplay() {
+  logDisplaySpiDebug(F("before SPI.begin"));
   SPI.begin();
+  logDisplaySpiDebug(F("after SPI.begin"));
+  Serial.println(F("[SPI] calling display.init"));
   display.init(115200, true, 2, false);
+  logDisplaySpiDebug(F("after display.init"));
   display.setRotation(0);
   display.setTextColor(GxEPD_BLACK);
   display.setFullWindow();
+  Serial.println(F("[SPI] display initialized"));
 }
 
 bool textFits(const GFXfont* font, const char* text, int16_t maxWidth, int16_t maxHeight) {
