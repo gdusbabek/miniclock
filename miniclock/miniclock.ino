@@ -410,11 +410,9 @@ void updateGpsSentenceLoggingToggle() {
   }
 
   if (gpsLogToggleButton.fell()) {
-    Serial.println(F("button fell"));
-  }
-
-  if (gpsLogToggleButton.rose()) {
-    Serial.println(F("button rose"));
+    logGpsSentences = !logGpsSentences;
+    Serial.print(F("NMEA logging "));
+    Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
   }
 }
 
