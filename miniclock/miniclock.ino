@@ -33,13 +33,12 @@ namespace Pins {
 constexpr uint8_t GPS_RX = 7;
 constexpr uint8_t GPS_TX = 6;
 
-// Hardware SPI is fixed on this board: CLK/SCK=D8, DIN/MOSI=D10.
-// The display doesn't use MISO, so D9 can be repurposed for a button input.
+// Hardware SPI is fixed on this board: CLK/SCK=D8, MISO=D9, DIN/MOSI=D10.
 constexpr uint8_t EPD_CS = 1;
 constexpr uint8_t EPD_DC = 5;
 constexpr uint8_t EPD_RST = 4;
 constexpr uint8_t EPD_BUSY = 3;
-constexpr uint8_t GPS_LOG_TOGGLE = 9;
+constexpr uint8_t GPS_LOG_TOGGLE = 0;
 
 // Optional DS18B20 data pin if you add the temperature sensor later.
 constexpr uint8_t ONE_WIRE = 2;
