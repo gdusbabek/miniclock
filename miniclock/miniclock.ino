@@ -189,9 +189,10 @@ void initializePins() {
   pinMode(Pins::EPD_DC, OUTPUT);
   pinMode(Pins::EPD_RST, OUTPUT);
   pinMode(Pins::EPD_BUSY, INPUT);
-  pinMode(Pins::GPS_LOG_TOGGLE, INPUT_PULLUP);
   gpsLogToggleButton.attach(Pins::GPS_LOG_TOGGLE, INPUT_PULLUP);
   gpsLogToggleButton.interval(BUTTON_DEBOUNCE_MS);
+  gpsLogToggleButton.update();
+  gpsLogToggleArmed = gpsLogToggleButton.read() == HIGH;
 
   digitalWrite(Pins::EPD_CS, HIGH);
   digitalWrite(Pins::EPD_DC, LOW);
@@ -396,7 +397,7 @@ void updateGpsSentenceLoggingToggle() {
     return;
   }
 
-  if (gpsLogToggleButton.rose()) {
+  if (gpsLogToggleButton.fell()) {
     logGpsSentences = !logGpsSentences;
     Serial.print(F("NMEA logging "));
     Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
