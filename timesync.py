@@ -17,6 +17,7 @@ NMEA_TIMEOUT_SECONDS = 15.0
 CONFIDENCE_SAMPLES = 2
 CONFIDENCE_WINDOW_SECONDS = 5.0
 SYSTEM_TIME_TOLERANCE_SECONDS = 2.0
+SET_TIME_OFFSET_SECONDS = 0.2
 
 
 def log(message: str) -> None:
@@ -200,7 +201,8 @@ def set_system_clock(target_utc: dt.datetime) -> bool:
         log("Insufficient privileges to set the system clock. Please run with sudo.")
         return False
 
-    date_arg = target_utc.strftime("%m%d%H%M%y.%S")
+    adjusted_target_utc = target_utc + dt.timedelta(seconds=SET_TIME_OFFSET_SECONDS)
+    date_arg = adjusted_target_utc.strftime("%m%d%H%M%y.%S")
     result = subprocess.run(
         ["date", "-u", date_arg],
         capture_output=True,
@@ -213,15 +215,15 @@ def set_system_clock(target_utc: dt.datetime) -> bool:
         return False
 
     system_now = dt.datetime.now(dt.timezone.utc)
-    delta_seconds = abs((system_now - target_utc).total_seconds())
+    delta_seconds = abs((system_now - adjusted_target_utc).total_seconds())
     if delta_seconds > SYSTEM_TIME_TOLERANCE_SECONDS:
         log(
             "System clock was updated, but verification failed: "
-            f"expected {target_utc.isoformat()}, got {system_now.isoformat()}."
+            f"expected {adjusted_target_utc.isoformat()}, got {system_now.isoformat()}."
         )
         return False
 
-    log(f"System clock set successfully to {target_utc.isoformat()}.")
+    log(f"System clock set successfully to {adjusted_target_utc.isoformat()}.")
     return True
 
 
