@@ -554,11 +554,9 @@ void updateGpsSentenceLoggingToggle() {
   }
 }
 
-bool hasFreshGpsLock() {
-  return gps.location.isValid() &&
-         gps.date.isValid() &&
+bool hasFreshGpsTime() {
+  return gps.date.isValid() &&
          gps.time.isValid() &&
-         gps.location.age() <= GPS_DATA_FRESH_MS &&
          gps.date.age() <= GPS_DATA_FRESH_MS &&
          gps.time.age() <= GPS_DATA_FRESH_MS;
 }
@@ -574,16 +572,16 @@ void consumeGpsData() {
   }
 }
 
-void waitForFreshGpsLock() {
+void waitForFreshGpsTime() {
   unsigned long lastStatusMs = 0;
 
-  while (!hasFreshGpsLock()) {
+  while (!hasFreshGpsTime()) {
     updateGpsSentenceLoggingToggle();
     consumeGpsData();
 
     const unsigned long nowMs = millis();
     if (nowMs - lastStatusMs >= GPS_LOCK_STATUS_MS) {
-      Serial.print(F("Waiting for GPS lock"));
+      Serial.print(F("Waiting for GPS time"));
       Serial.print(F(" sats="));
       Serial.print(gps.satellites.isValid() ? gps.satellites.value() : 0);
       Serial.print(F(" loc="));
@@ -627,9 +625,7 @@ void waitForFreshGpsLock() {
 
     delay(10);
   }
-  Serial.print(F("GPS is locked with "));
-  Serial.print(gps.satellites.value());
-  Serial.println(F(" satellites."));
+  Serial.println(F("GPS time is locked."));
 }
 
 void printState() {
@@ -850,7 +846,7 @@ void consumeSerialCommands() {
 void updateDisplay(bool forceFullRefresh) {
   const char* locator = currentLocationValid()
     ? get_mh(currentLatitude(), currentLongitude(), 6)
-    : "------";
+    : "";
 
   char timeLine[16] = {0};
   char dateLine[32] = {0};
@@ -987,7 +983,7 @@ void setup() {
   tempSensors.begin();
   pollTemperatureF();
   showAcquiringGps();
-  waitForFreshGpsLock();
+  waitForFreshGpsTime();
   syncSystemTimeFromGps();
   lastGpsResyncMs = millis();
   updateDisplay(true);
