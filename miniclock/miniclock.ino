@@ -591,7 +591,37 @@ void waitForFreshGpsLock() {
       Serial.print(F(" date="));
       Serial.print(gps.date.isValid() ? F("Y") : F("N"));
       Serial.print(F(" time="));
-      Serial.println(gps.time.isValid() ? F("Y") : F("N"));
+      Serial.print(gps.time.isValid() ? F("Y") : F("N"));
+      if (gps.date.isValid() && gps.time.isValid()) {
+        Serial.print(F(" gps_utc="));
+        Serial.print(gps.date.year());
+        Serial.print(F("-"));
+        if (gps.date.month() < 10) {
+          Serial.print(F("0"));
+        }
+        Serial.print(gps.date.month());
+        Serial.print(F("-"));
+        if (gps.date.day() < 10) {
+          Serial.print(F("0"));
+        }
+        Serial.print(gps.date.day());
+        Serial.print(F(" "));
+        if (gps.time.hour() < 10) {
+          Serial.print(F("0"));
+        }
+        Serial.print(gps.time.hour());
+        Serial.print(F(":"));
+        if (gps.time.minute() < 10) {
+          Serial.print(F("0"));
+        }
+        Serial.print(gps.time.minute());
+        Serial.print(F(":"));
+        if (gps.time.second() < 10) {
+          Serial.print(F("0"));
+        }
+        Serial.print(gps.time.second());
+      }
+      Serial.println();
       lastStatusMs = nowMs;
     }
 
