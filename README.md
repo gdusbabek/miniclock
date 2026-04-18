@@ -25,7 +25,6 @@ Current pin usage in [`miniclock/miniclock.ino`](/Users/gdusbabek/Library/Mobile
 - E-paper `RST -> D4`
 - E-paper `BUSY -> D3`
 - DS18B20 data -> `D2`
-- Momentary button to toggle NMEA logging -> `D0` to `GND`
 
 Board SPI note:
 
@@ -36,7 +35,7 @@ Board SPI note:
 ## Firmware Behavior
 
 - The sketch initializes serial, display, temperature, and GPS.
-- Startup blocks until GPS location, date, and time are all fresh.
+- Startup blocks until GPS date and time are fresh; location can settle later.
 - Time is displayed as UTC in `HH:MM` format.
 - The display refreshes each minute.
 - E-paper partial refresh is used between periodic full refreshes.
@@ -49,6 +48,8 @@ The firmware listens on USB serial at `115200`.
 
 - `state`
   Prints latitude, longitude, satellites, Maidenhead, UTC date/time, and whether the location override is active.
+- `nmea`
+  Toggles raw NMEA sentence logging to USB serial and persists the preference across reboots.
 - `location LAT, LON`
   Temporarily overrides the GPS location for 5 minutes.
   Example: `location 29.4241, -98.4936`
@@ -56,15 +57,17 @@ The firmware listens on USB serial at `115200`.
   Polls the DS18B20 immediately, prints the formatted temperature, and updates the display.
 - `restart`
   Restarts the device.
+- `epdtest`
+  Runs the e-paper display self-test and redraws the clock face.
+- `help`
+  Lists the available serial commands.
 
-## NMEA Logging Button
+## NMEA Logging
 
-- NMEA sentence logging defaults to off at startup.
-- Pressing the `D0` button toggles NMEA passthrough to USB serial on and off.
+- NMEA sentence logging defaults to off for new flash settings.
+- The `nmea` serial command toggles NMEA passthrough to USB serial on and off.
 - The NMEA logging preference is persisted in flash storage across reboots.
 - When NMEA logging is enabled, the display shows a small `NMEA` tag in the footer.
-- The button handler is debounced with `Bounce2`.
-- Button events are ignored until startup is complete, which avoids false triggers during boot.
 
 ## Host Clock Sync
 
@@ -101,7 +104,6 @@ Arduino libraries used by the sketch:
 - `TinyGPSPlus`
 - `GxEPD2`
 - `Adafruit_GFX`
-- `Bounce2`
 - `DallasTemperature`
 - `OneWire`
 - `Time`
