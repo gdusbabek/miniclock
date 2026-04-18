@@ -36,7 +36,8 @@ Board SPI note:
 ## Firmware Behavior
 
 - The sketch initializes serial, display, temperature, and GPS.
-- Startup blocks until GPS date and time are fresh; location can settle later.
+- Startup blocks until GPS date and time are fresh and plausible; location can settle later.
+- While acquiring GPS time, the sketch reports NMEA flow, parsed date/time candidates, freshness, and trust status once per second.
 - Time is displayed as UTC in `HH:MM` format.
 - The display refreshes each minute.
 - E-paper partial refresh is used between periodic full refreshes.
@@ -71,6 +72,7 @@ The firmware listens on USB serial at `115200`.
 - An optional momentary button on `D0` toggles the same persisted NMEA logging setting.
 - The NMEA logging preference is persisted in flash storage across reboots.
 - When NMEA logging is enabled, the display shows a small `NMEA` tag in the footer.
+- Raw NMEA passthrough is suppressed during startup acquisition and begins after trusted GPS time is available.
 
 ## Host Clock Sync
 

@@ -59,6 +59,9 @@ constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 constexpr float MIN_REASONABLE_TEMP_F = -50.0f;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 10UL;
 constexpr uint32_t SETTINGS_MAGIC = 0x4D434C4BUL;
+constexpr uint16_t MIN_TRUSTED_GPS_YEAR = 2024;
+constexpr uint16_t MAX_TRUSTED_GPS_YEAR = 2098;
+constexpr uint32_t BAD_GPS_BOOT_DATE = 311299UL;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
   GxEPD2_DRIVER_CLASS(Pins::EPD_CS, Pins::EPD_DC, Pins::EPD_RST, Pins::EPD_BUSY)
@@ -95,6 +98,7 @@ bool logGpsSentences = true;
 Bounce nmeaToggleButton;
 
 void updateDisplay(bool forceFullRefresh = false);
+bool hasTrustedGpsTime();
 
 StoredSettings loadSettings() {
   return settingsStorage.read();
@@ -521,7 +525,7 @@ void showAcquiringGps() {
 }
 
 void syncSystemTimeFromGps() {
-  if (!gps.time.isValid() || !gps.date.isValid()) {
+  if (!hasTrustedGpsTime()) {
     return;
   }
 
@@ -535,11 +539,86 @@ void syncSystemTimeFromGps() {
   );
 }
 
-bool hasFreshGpsTime() {
-  return gps.date.isValid() &&
+void printTwoDigits(uint8_t value) {
+  if (value < 10) {
+    Serial.print(F("0"));
+  }
+  Serial.print(value);
+}
+
+bool isLeapYear(uint16_t year) {
+  return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+}
+
+uint8_t daysInMonth(uint16_t year, uint8_t month) {
+  switch (month) {
+    case 2:
+      return isLeapYear(year) ? 29 : 28;
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+      return 30;
+    default:
+      return 31;
+  }
+}
+
+bool hasPlausibleGpsDate() {
+  if (!gps.date.isValid()) {
+    return false;
+  }
+
+  const uint32_t rawDate = gps.date.value();
+  if (rawDate == BAD_GPS_BOOT_DATE) {
+    return false;
+  }
+
+  const uint16_t gpsYear = gps.date.year();
+  const uint8_t gpsMonth = gps.date.month();
+  const uint8_t gpsDay = gps.date.day();
+  return gpsYear >= MIN_TRUSTED_GPS_YEAR &&
+         gpsYear <= MAX_TRUSTED_GPS_YEAR &&
+         gpsMonth >= 1 &&
+         gpsMonth <= 12 &&
+         gpsDay >= 1 &&
+         gpsDay <= daysInMonth(gpsYear, gpsMonth);
+}
+
+bool hasTrustedGpsTime() {
+  return hasPlausibleGpsDate() &&
          gps.time.isValid() &&
          gps.date.age() <= GPS_DATA_FRESH_MS &&
          gps.time.age() <= GPS_DATA_FRESH_MS;
+}
+
+void printGpsDateTimeCandidate() {
+  Serial.print(F(" gps_utc="));
+  if (gps.date.isValid()) {
+    Serial.print(gps.date.year());
+    Serial.print(F("-"));
+    printTwoDigits(gps.date.month());
+    Serial.print(F("-"));
+    printTwoDigits(gps.date.day());
+  } else {
+    Serial.print(F("date?"));
+  }
+
+  Serial.print(F(" "));
+  if (gps.time.isValid()) {
+    printTwoDigits(gps.time.hour());
+    Serial.print(F(":"));
+    printTwoDigits(gps.time.minute());
+    Serial.print(F(":"));
+    printTwoDigits(gps.time.second());
+  } else {
+    Serial.print(F("time?"));
+  }
+
+  Serial.print(F(" raw_date="));
+  Serial.print(gps.date.value());
+  Serial.print(F(" raw_time="));
+  Serial.print(gps.time.value());
 }
 
 void updateNmeaToggleButton(bool refreshDisplay) {
@@ -549,12 +628,12 @@ void updateNmeaToggleButton(bool refreshDisplay) {
   }
 }
 
-void consumeGpsData() {
+void consumeGpsData(bool allowSentenceLogging = true) {
   while (Serial1.available() > 0) {
     const char c = static_cast<char>(Serial1.read());
     gps.encode(c);
 
-    if (logGpsSentences) {
+    if (allowSentenceLogging && logGpsSentences) {
       Serial.write(c);
     }
   }
@@ -562,14 +641,22 @@ void consumeGpsData() {
 
 void waitForFreshGpsTime() {
   unsigned long lastStatusMs = 0;
+  uint32_t lastPassedChecksumCount = gps.passedChecksum();
 
-  while (!hasFreshGpsTime()) {
+  while (!hasTrustedGpsTime()) {
     updateNmeaToggleButton(false);
-    consumeGpsData();
+    consumeGpsData(false);
 
     const unsigned long nowMs = millis();
     if (nowMs - lastStatusMs >= GPS_LOCK_STATUS_MS) {
-      Serial.print(F("Waiting for GPS time"));
+      const uint32_t passedChecksumCount = gps.passedChecksum();
+      Serial.print(F("Acquiring GPS time"));
+      Serial.print(F(" nmea="));
+      Serial.print(passedChecksumCount != lastPassedChecksumCount ? F("flowing") : F("quiet"));
+      Serial.print(F(" sentences="));
+      Serial.print(passedChecksumCount);
+      Serial.print(F(" failed="));
+      Serial.print(gps.failedChecksum());
       Serial.print(F(" sats="));
       Serial.print(gps.satellites.isValid() ? gps.satellites.value() : 0);
       Serial.print(F(" loc="));
@@ -578,37 +665,12 @@ void waitForFreshGpsTime() {
       Serial.print(gps.date.isValid() ? F("Y") : F("N"));
       Serial.print(F(" time="));
       Serial.print(gps.time.isValid() ? F("Y") : F("N"));
-      if (gps.date.isValid() && gps.time.isValid()) {
-        Serial.print(F(" gps_utc="));
-        Serial.print(gps.date.year());
-        Serial.print(F("-"));
-        if (gps.date.month() < 10) {
-          Serial.print(F("0"));
-        }
-        Serial.print(gps.date.month());
-        Serial.print(F("-"));
-        if (gps.date.day() < 10) {
-          Serial.print(F("0"));
-        }
-        Serial.print(gps.date.day());
-        Serial.print(F(" "));
-        if (gps.time.hour() < 10) {
-          Serial.print(F("0"));
-        }
-        Serial.print(gps.time.hour());
-        Serial.print(F(":"));
-        if (gps.time.minute() < 10) {
-          Serial.print(F("0"));
-        }
-        Serial.print(gps.time.minute());
-        Serial.print(F(":"));
-        if (gps.time.second() < 10) {
-          Serial.print(F("0"));
-        }
-        Serial.print(gps.time.second());
-      }
+      Serial.print(F(" trusted="));
+      Serial.print(hasTrustedGpsTime() ? F("Y") : F("N"));
+      printGpsDateTimeCandidate();
       Serial.println();
       lastStatusMs = nowMs;
+      lastPassedChecksumCount = passedChecksumCount;
     }
 
     delay(10);
@@ -1052,7 +1114,7 @@ void setup() {
   lastGpsResyncMs = millis();
   updateDisplay(true);
   shouldUpdateDisplayForCurrentMinute();
-  Serial.println(F("GPS lock acquired."));
+  Serial.println(F("GPS time lock acquired."));
 }
 
 void loop() {
@@ -1062,7 +1124,7 @@ void loop() {
 
   const unsigned long nowMs = millis();
 
-  if (gps.location.isValid() && nowMs - lastGpsResyncMs >= GPS_RESYNC_MS) {
+  if (hasTrustedGpsTime() && nowMs - lastGpsResyncMs >= GPS_RESYNC_MS) {
     syncSystemTimeFromGps();
     lastGpsResyncMs = nowMs;
   }
