@@ -48,8 +48,8 @@ The firmware listens on USB serial at `115200`.
 
 - `state`
   Prints latitude, longitude, satellites, Maidenhead, UTC date/time, and whether the location override is active.
-- `nmea`
-  Toggles raw NMEA sentence logging to USB serial and persists the preference across reboots.
+- `nmea [true|false|on|off|yes|no]`
+  Sets raw NMEA sentence logging explicitly, or toggles it when no argument is provided.
 - `location LAT, LON`
   Temporarily overrides the GPS location for 5 minutes.
   Example: `location 29.4241, -98.4936`
@@ -65,7 +65,8 @@ The firmware listens on USB serial at `115200`.
 ## NMEA Logging
 
 - NMEA sentence logging defaults to on for new flash settings.
-- The `nmea` serial command toggles NMEA passthrough to USB serial on and off.
+- The `nmea` serial command toggles NMEA passthrough to USB serial when called without an argument.
+- Use `nmea on`, `nmea off`, `nmea true`, `nmea false`, `nmea yes`, or `nmea no` to set logging explicitly.
 - The NMEA logging preference is persisted in flash storage across reboots.
 - When NMEA logging is enabled, the display shows a small `NMEA` tag in the footer.
 

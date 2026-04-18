@@ -731,12 +731,87 @@ bool parseLocationOverrideCommand(const char* command) {
   return true;
 }
 
+bool equalsIgnoreCase(const char* lhs, const char* rhs) {
+  while (*lhs != '\0' && *rhs != '\0') {
+    if (tolower(*lhs) != tolower(*rhs)) {
+      return false;
+    }
+    ++lhs;
+    ++rhs;
+  }
+  return *lhs == '\0' && *rhs == '\0';
+}
+
+bool parseNmeaCommand(const char* command) {
+  constexpr const char* commandName = "nmea";
+  constexpr size_t commandNameLength = 4;
+
+  if (strncmp(command, commandName, commandNameLength) != 0) {
+    return false;
+  }
+
+  const char* argument = command + commandNameLength;
+  if (*argument != '\0' && *argument != ' ') {
+    return false;
+  }
+
+  while (*argument == ' ') {
+    ++argument;
+  }
+
+  if (*argument == '\0') {
+    logGpsSentences = !logGpsSentences;
+  } else {
+    const char* argumentEnd = argument;
+    while (*argumentEnd != '\0' && *argumentEnd != ' ') {
+      ++argumentEnd;
+    }
+
+    char normalizedArgument[8] = {0};
+    const size_t argumentLength = static_cast<size_t>(argumentEnd - argument);
+    if (argumentLength == 0 || argumentLength >= sizeof(normalizedArgument)) {
+      Serial.println(F("Usage: nmea [true|false|on|off|yes|no]"));
+      return true;
+    }
+
+    strncpy(normalizedArgument, argument, argumentLength);
+    normalizedArgument[argumentLength] = '\0';
+
+    while (*argumentEnd == ' ') {
+      ++argumentEnd;
+    }
+    if (*argumentEnd != '\0') {
+      Serial.println(F("Usage: nmea [true|false|on|off|yes|no]"));
+      return true;
+    }
+
+    if (equalsIgnoreCase(normalizedArgument, "true") ||
+        equalsIgnoreCase(normalizedArgument, "on") ||
+        equalsIgnoreCase(normalizedArgument, "yes")) {
+      logGpsSentences = true;
+    } else if (equalsIgnoreCase(normalizedArgument, "false") ||
+               equalsIgnoreCase(normalizedArgument, "off") ||
+               equalsIgnoreCase(normalizedArgument, "no")) {
+      logGpsSentences = false;
+    } else {
+      Serial.println(F("Usage: nmea [true|false|on|off|yes|no]"));
+      return true;
+    }
+  }
+
+  saveSettings();
+  Serial.print(F("NMEA logging "));
+  Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
+  updateDisplay(true);
+  return true;
+}
+
 void handleSerialCommand(const char* command) {
   if (strcmp(command, "help") == 0) {
     Serial.println(F("Available commands:"));
     Serial.println(F("  help      - list serial commands"));
     Serial.println(F("  state     - print current GPS and clock state"));
-    Serial.println(F("  nmea      - toggle raw NMEA sentence logging"));
+    Serial.println(F("  nmea [true|false|on|off|yes|no] - set or toggle raw NMEA logging"));
     Serial.println(F("  temp      - poll the temperature sensor and refresh the display"));
     Serial.println(F("  epdtest   - run the e-paper self-test"));
     Serial.println(F("  restart   - restart the device"));
@@ -749,12 +824,7 @@ void handleSerialCommand(const char* command) {
     return;
   }
 
-  if (strcmp(command, "nmea") == 0) {
-    logGpsSentences = !logGpsSentences;
-    saveSettings();
-    Serial.print(F("NMEA logging "));
-    Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
-    updateDisplay(true);
+  if (parseNmeaCommand(command)) {
     return;
   }
 
