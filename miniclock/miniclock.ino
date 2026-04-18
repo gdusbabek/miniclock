@@ -88,7 +88,7 @@ unsigned long locationOverrideExpiresMs = 0;
 uint8_t minuteUpdatesSinceFullRefresh = 0;
 bool displayNeedsFullRefresh = false;
 float cachedTemperatureF = -1000.0f;
-bool logGpsSentences = false;
+bool logGpsSentences = true;
 
 void updateDisplay(bool forceFullRefresh = false);
 
@@ -104,7 +104,7 @@ void saveSettings() {
 void loadSettingsIntoRuntime() {
   const StoredSettings settings = loadSettings();
   if (settings.magic != SETTINGS_MAGIC) {
-    logGpsSentences = false;
+    logGpsSentences = true;
     return;
   }
   logGpsSentences = settings.logGpsSentences != 0;

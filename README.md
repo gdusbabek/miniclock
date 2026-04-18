@@ -64,7 +64,7 @@ The firmware listens on USB serial at `115200`.
 
 ## NMEA Logging
 
-- NMEA sentence logging defaults to off for new flash settings.
+- NMEA sentence logging defaults to on for new flash settings.
 - The `nmea` serial command toggles NMEA passthrough to USB serial on and off.
 - The NMEA logging preference is persisted in flash storage across reboots.
 - When NMEA logging is enabled, the display shows a small `NMEA` tag in the footer.
