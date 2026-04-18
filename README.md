@@ -25,6 +25,7 @@ Current pin usage in [`miniclock/miniclock.ino`](/Users/gdusbabek/Library/Mobile
 - E-paper `RST -> D4`
 - E-paper `BUSY -> D3`
 - DS18B20 data -> `D2`
+- Optional NMEA logging button -> `D0` to `GND`
 
 Board SPI note:
 
@@ -67,6 +68,7 @@ The firmware listens on USB serial at `115200`.
 - NMEA sentence logging defaults to on for new flash settings.
 - The `nmea` serial command toggles NMEA passthrough to USB serial when called without an argument.
 - Use `nmea on`, `nmea off`, `nmea true`, `nmea false`, `nmea yes`, or `nmea no` to set logging explicitly.
+- An optional momentary button on `D0` toggles the same persisted NMEA logging setting.
 - The NMEA logging preference is persisted in flash storage across reboots.
 - When NMEA logging is enabled, the display shows a small `NMEA` tag in the footer.
 
@@ -105,6 +107,7 @@ Arduino libraries used by the sketch:
 - `TinyGPSPlus`
 - `GxEPD2`
 - `Adafruit_GFX`
+- `Bounce2`
 - `DallasTemperature`
 - `OneWire`
 - `Time`

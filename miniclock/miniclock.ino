@@ -8,6 +8,7 @@
 #include <TimeLib.h>
 #include <Adafruit_SleepyDog.h>
 #include <GxEPD2_BW.h>
+#include <Bounce2.h>
 #include <Fonts/FreeMonoBold12pt7b.h>
 #include <Fonts/FreeMonoBold18pt7b.h>
 #include <Fonts/FreeMonoBold24pt7b.h>
@@ -37,6 +38,7 @@ constexpr uint8_t EPD_CS = 1;
 constexpr uint8_t EPD_DC = 5;
 constexpr uint8_t EPD_RST = 4;
 constexpr uint8_t EPD_BUSY = 3;
+constexpr uint8_t NMEA_TOGGLE_BUTTON = 0;
 
 // Optional DS18B20 data pin if you add the temperature sensor later.
 constexpr uint8_t ONE_WIRE = 2;
@@ -55,6 +57,7 @@ constexpr uint16_t PARTIAL_HEADER_HEIGHT = 100;
 constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 constexpr float MIN_REASONABLE_TEMP_F = -50.0f;
+constexpr unsigned long BUTTON_DEBOUNCE_MS = 10UL;
 constexpr uint32_t SETTINGS_MAGIC = 0x4D434C4BUL;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
@@ -89,6 +92,7 @@ uint8_t minuteUpdatesSinceFullRefresh = 0;
 bool displayNeedsFullRefresh = false;
 float cachedTemperatureF = -1000.0f;
 bool logGpsSentences = true;
+Bounce nmeaToggleButton;
 
 void updateDisplay(bool forceFullRefresh = false);
 
@@ -99,6 +103,20 @@ StoredSettings loadSettings() {
 void saveSettings() {
   StoredSettings settings = {SETTINGS_MAGIC, static_cast<uint8_t>(logGpsSentences ? 1 : 0)};
   settingsStorage.write(settings);
+}
+
+void printNmeaLoggingState() {
+  Serial.print(F("NMEA logging "));
+  Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
+}
+
+void setNmeaLogging(bool enabled, bool refreshDisplay) {
+  logGpsSentences = enabled;
+  saveSettings();
+  printNmeaLoggingState();
+  if (refreshDisplay) {
+    updateDisplay(true);
+  }
 }
 
 void loadSettingsIntoRuntime() {
@@ -209,6 +227,10 @@ void initializePins() {
   pinMode(Pins::EPD_DC, OUTPUT);
   pinMode(Pins::EPD_RST, OUTPUT);
   pinMode(Pins::EPD_BUSY, INPUT);
+  pinMode(Pins::NMEA_TOGGLE_BUTTON, INPUT_PULLUP);
+  nmeaToggleButton.attach(Pins::NMEA_TOGGLE_BUTTON);
+  nmeaToggleButton.interval(BUTTON_DEBOUNCE_MS);
+  nmeaToggleButton.update();
 
   digitalWrite(Pins::EPD_CS, HIGH);
   digitalWrite(Pins::EPD_DC, LOW);
@@ -520,6 +542,13 @@ bool hasFreshGpsTime() {
          gps.time.age() <= GPS_DATA_FRESH_MS;
 }
 
+void updateNmeaToggleButton(bool refreshDisplay) {
+  nmeaToggleButton.update();
+  if (nmeaToggleButton.fell()) {
+    setNmeaLogging(!logGpsSentences, refreshDisplay);
+  }
+}
+
 void consumeGpsData() {
   while (Serial1.available() > 0) {
     const char c = static_cast<char>(Serial1.read());
@@ -535,6 +564,7 @@ void waitForFreshGpsTime() {
   unsigned long lastStatusMs = 0;
 
   while (!hasFreshGpsTime()) {
+    updateNmeaToggleButton(false);
     consumeGpsData();
 
     const unsigned long nowMs = millis();
@@ -760,7 +790,7 @@ bool parseNmeaCommand(const char* command) {
   }
 
   if (*argument == '\0') {
-    logGpsSentences = !logGpsSentences;
+    setNmeaLogging(!logGpsSentences, true);
   } else {
     const char* argumentEnd = argument;
     while (*argumentEnd != '\0' && *argumentEnd != ' ') {
@@ -788,21 +818,17 @@ bool parseNmeaCommand(const char* command) {
     if (equalsIgnoreCase(normalizedArgument, "true") ||
         equalsIgnoreCase(normalizedArgument, "on") ||
         equalsIgnoreCase(normalizedArgument, "yes")) {
-      logGpsSentences = true;
+      setNmeaLogging(true, true);
     } else if (equalsIgnoreCase(normalizedArgument, "false") ||
                equalsIgnoreCase(normalizedArgument, "off") ||
                equalsIgnoreCase(normalizedArgument, "no")) {
-      logGpsSentences = false;
+      setNmeaLogging(false, true);
     } else {
       Serial.println(F("Usage: nmea [true|false|on|off|yes|no]"));
       return true;
     }
   }
 
-  saveSettings();
-  Serial.print(F("NMEA logging "));
-  Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
-  updateDisplay(true);
   return true;
 }
 
@@ -1030,6 +1056,7 @@ void setup() {
 }
 
 void loop() {
+  updateNmeaToggleButton(true);
   consumeGpsData();
   consumeSerialCommands();
 
