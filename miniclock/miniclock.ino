@@ -8,7 +8,6 @@
 #include <TimeLib.h>
 #include <Adafruit_SleepyDog.h>
 #include <GxEPD2_BW.h>
-#include <Bounce2.h>
 #include <Fonts/FreeMonoBold12pt7b.h>
 #include <Fonts/FreeMonoBold18pt7b.h>
 #include <Fonts/FreeMonoBold24pt7b.h>
@@ -38,7 +37,6 @@ constexpr uint8_t EPD_CS = 1;
 constexpr uint8_t EPD_DC = 5;
 constexpr uint8_t EPD_RST = 4;
 constexpr uint8_t EPD_BUSY = 3;
-constexpr uint8_t GPS_LOG_TOGGLE = 0;
 
 // Optional DS18B20 data pin if you add the temperature sensor later.
 constexpr uint8_t ONE_WIRE = 2;
@@ -57,7 +55,6 @@ constexpr uint16_t PARTIAL_HEADER_HEIGHT = 100;
 constexpr uint16_t PARTIAL_FOOTER_Y = 168;
 constexpr uint16_t PARTIAL_FOOTER_HEIGHT = 32;
 constexpr float MIN_REASONABLE_TEMP_F = -50.0f;
-constexpr unsigned long BUTTON_DEBOUNCE_MS = 10UL;
 constexpr uint32_t SETTINGS_MAGIC = 0x4D434C4BUL;
 
 GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(
@@ -92,9 +89,6 @@ uint8_t minuteUpdatesSinceFullRefresh = 0;
 bool displayNeedsFullRefresh = false;
 float cachedTemperatureF = -1000.0f;
 bool logGpsSentences = false;
-Bounce gpsLogToggleButton;
-bool gpsLogToggleArmed = false;
-bool gpsLogToggleEventsEnabled = false;
 
 void updateDisplay(bool forceFullRefresh = false);
 
@@ -215,21 +209,10 @@ void initializePins() {
   pinMode(Pins::EPD_DC, OUTPUT);
   pinMode(Pins::EPD_RST, OUTPUT);
   pinMode(Pins::EPD_BUSY, INPUT);
-  pinMode(Pins::GPS_LOG_TOGGLE, INPUT_PULLUP);
-  gpsLogToggleButton.attach(Pins::GPS_LOG_TOGGLE);
-  gpsLogToggleButton.interval(BUTTON_DEBOUNCE_MS);
-  gpsLogToggleButton.update();
-  gpsLogToggleArmed = gpsLogToggleButton.read() == HIGH;
 
   digitalWrite(Pins::EPD_CS, HIGH);
   digitalWrite(Pins::EPD_DC, LOW);
   digitalWrite(Pins::EPD_RST, HIGH);
-}
-
-void enableGpsLogToggleEvents() {
-  gpsLogToggleButton.update();
-  gpsLogToggleArmed = gpsLogToggleButton.read() == HIGH;
-  gpsLogToggleEventsEnabled = true;
 }
 
 void initializeSerial() {
@@ -530,30 +513,6 @@ void syncSystemTimeFromGps() {
   );
 }
 
-void updateGpsSentenceLoggingToggle() {
-  if (!gpsLogToggleEventsEnabled) {
-    gpsLogToggleButton.update();
-    return;
-  }
-
-  gpsLogToggleButton.update();
-
-  if (!gpsLogToggleArmed) {
-    if (gpsLogToggleButton.read() == HIGH) {
-      gpsLogToggleArmed = true;
-    }
-    return;
-  }
-
-  if (gpsLogToggleButton.fell()) {
-    logGpsSentences = !logGpsSentences;
-    saveSettings();
-    Serial.print(F("NMEA logging "));
-    Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
-    updateDisplay(true);
-  }
-}
-
 bool hasFreshGpsTime() {
   return gps.date.isValid() &&
          gps.time.isValid() &&
@@ -576,7 +535,6 @@ void waitForFreshGpsTime() {
   unsigned long lastStatusMs = 0;
 
   while (!hasFreshGpsTime()) {
-    updateGpsSentenceLoggingToggle();
     consumeGpsData();
 
     const unsigned long nowMs = millis();
@@ -778,6 +736,7 @@ void handleSerialCommand(const char* command) {
     Serial.println(F("Available commands:"));
     Serial.println(F("  help      - list serial commands"));
     Serial.println(F("  state     - print current GPS and clock state"));
+    Serial.println(F("  nmea      - toggle raw NMEA sentence logging"));
     Serial.println(F("  temp      - poll the temperature sensor and refresh the display"));
     Serial.println(F("  epdtest   - run the e-paper self-test"));
     Serial.println(F("  restart   - restart the device"));
@@ -787,6 +746,15 @@ void handleSerialCommand(const char* command) {
 
   if (strcmp(command, "state") == 0) {
     printState();
+    return;
+  }
+
+  if (strcmp(command, "nmea") == 0) {
+    logGpsSentences = !logGpsSentences;
+    saveSettings();
+    Serial.print(F("NMEA logging "));
+    Serial.println(logGpsSentences ? F("enabled") : F("disabled"));
+    updateDisplay(true);
     return;
   }
 
@@ -988,12 +956,10 @@ void setup() {
   lastGpsResyncMs = millis();
   updateDisplay(true);
   shouldUpdateDisplayForCurrentMinute();
-  enableGpsLogToggleEvents();
   Serial.println(F("GPS lock acquired."));
 }
 
 void loop() {
-  updateGpsSentenceLoggingToggle();
   consumeGpsData();
   consumeSerialCommands();
 
